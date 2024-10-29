@@ -24,7 +24,11 @@ void init(tora::db & db) {
 }
 
 void process_dep(tora::db & db, jute::view repo_dir, jute::view path) {
-  silog::trace(path);
+  auto [l_ver, ver] = path.rsplit('/');
+  auto [l_art, art] = l_ver.rsplit('/');
+
+  auto pom = repo_dir + path + "/" + art + "-" + ver + ".pom";
+  silog::trace(jute::view{pom.cstr()});
 }
 
 void recurse(tora::db & db, jute::view repo_dir, jute::view path) {
@@ -32,7 +36,7 @@ void recurse(tora::db & db, jute::view repo_dir, jute::view path) {
   for (auto f : pprent::list(full_path.begin())) {
     auto ff = jute::view::unsafe(f);
     if (f[0] == '.') continue;
-    if (ff == "_remote.repositories") process_dep(db, repo_dir, path.subview(1).after);
+    if (ff == "_remote.repositories") process_dep(db, repo_dir, path);
     else {
       auto dir = (path + "/" + jute::view::unsafe(f)).cstr();
       recurse(db, repo_dir, dir);
@@ -41,7 +45,7 @@ void recurse(tora::db & db, jute::view repo_dir, jute::view path) {
 }
 
 int main(int argc, char ** argv) try {
-  const auto repo_dir = (jute::view::unsafe(getenv("HOME")) + "/.m2/repository/").cstr();
+  const auto repo_dir = (jute::view::unsafe(getenv("HOME")) + "/.m2/repository").cstr();
   tora::db db { ":memory:" };
   init(db);
   recurse(db, repo_dir, "");
