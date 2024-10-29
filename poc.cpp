@@ -12,22 +12,22 @@ void init(tora::db & db) {
   db.exec(R"(
     CREATE TABLE pom (
       id       INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      filename TEXT NOT NULL,
-      fmod     DATETIME NOT NULL,
+      filename TEXT    NOT NULL,
+      fmod     INTEGER NOT NULL,
 
       group_id    TEXT NOT NULL,
       artefact_id TEXT NOT NULL,
       version     TEXT NOT NULL,
 
       parent  INTEGER REFERENCES pom(id)
-    );
+    ) STRICT;
   )");
 }
 
 void persist_pom(tora::stmt & stmt, cavan::pom * pom, auto ftime) {
   stmt.reset();
   stmt.bind(1, pom->filename);
-  stmt.bind(2, ftime);
+  stmt.bind64(2, ftime);
   stmt.bind(3, pom->grp);
   stmt.bind(4, pom->art);
   stmt.bind(5, pom->ver);
