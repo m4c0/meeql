@@ -36,16 +36,17 @@ void process_dep(tora::db & db, jute::view repo_dir, jute::view path) {
   silog::trace(jute::view{pom->filename});
 }
 
-void recurse(tora::db & db, jute::view repo_dir, jute::view path) {
+void recurse(tora::stmt & stmt, jute::view repo_dir, jute::view path) {
   auto full_path = (repo_dir + path).cstr();
+  auto marker = repo_dir + path + "/_remote.repositories";
+  if (mtime::of(marker.cstr().begin())) {
+    process_dep(stmt, repo_dir, path);
+    return;
+  }
   for (auto f : pprent::list(full_path.begin())) {
-    auto ff = jute::view::unsafe(f);
     if (f[0] == '.') continue;
-    if (ff == "_remote.repositories") process_dep(db, repo_dir, path);
-    else {
-      auto dir = (path + "/" + jute::view::unsafe(f)).cstr();
-      recurse(db, repo_dir, dir);
-    }
+    auto dir = (path + "/" + jute::view::unsafe(f)).cstr();
+    recurse(stmt, repo_dir, dir);
   }
 }
 
@@ -53,7 +54,13 @@ int main(int argc, char ** argv) try {
   const auto repo_dir = (jute::view::unsafe(getenv("HOME")) + "/.m2/repository").cstr();
   tora::db db { ":memory:" };
   init(db);
-  recurse(db, repo_dir, "");
+
+  auto stmt = db.prepare(R"(
+    INSERT INTO pom (
+      filename, fmod, group_id, artefact_id, version, parent
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  )");
+  recurse(stmt, repo_dir, "");
 } catch (...) {
   return 1;
 }
