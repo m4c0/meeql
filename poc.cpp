@@ -30,17 +30,17 @@ void setup_schema(tora::db & db) {
       parent        INTEGER REFERENCES pom(id)
     ) STRICT;
 
-    CREATE TABLE deps (
+    CREATE TABLE dep (
       id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 
       owner_pom INTEGER NOT NULL REFERENCES pom(id),
 
       group_id       TEXT NOT NULL,
       artefact_id    TEXT NOT NULL,
-      version        TEXT NOT NULL,
-      type           TEXT NOT NULL,
-      scope          TEXT NOT NULL,
-      classification TEXT NOT NULL,
+      version        TEXT,
+      type           TEXT DEFAULT 'jar',
+      scope          TEXT DEFAULT 'compile',
+      classification TEXT,
       optional       INTEGER NOT NULL
     ) STRICT;
   )");
