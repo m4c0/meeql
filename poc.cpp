@@ -6,6 +6,7 @@ import jute;
 import mtime;
 import pprent;
 import silog;
+import sitime;
 import tora;
 
 static const auto repo_dir = (jute::view::unsafe(getenv("HOME")) + "/.m2/repository").cstr();
@@ -34,6 +35,7 @@ void setup_schema(tora::db & db) {
       id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 
       owner_pom INTEGER NOT NULL REFERENCES pom(id),
+      dep_mgmt  INTEGER NOT NULL,
 
       group_id       TEXT NOT NULL,
       artefact_id    TEXT NOT NULL,
@@ -58,12 +60,28 @@ void prepare_statements(tora::db & db) {
   )");
   g_dep_stmt = db.prepare(R"(
     INSERT INTO dep (
-      owner_pom,
+      owner_pom, dep_mgmt,
       group_id, artefact_id, version,
       type, scope, classification, optional
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   )");
+}
+
+void persist_deps(const cavan::deps & list, bool dm) {
+  for (auto &[d, _] : list) {
+    g_dep_stmt.reset();
+    g_dep_stmt.bind(1, g_pom_stmt.column_int(0));
+    g_dep_stmt.bind(2, dm ? 1 : 0);
+    g_dep_stmt.bind(3, *d.grp);
+    g_dep_stmt.bind(4, d.art);
+    g_dep_stmt.bind(5, *d.ver);
+    g_dep_stmt.bind(6, d.typ);
+    g_dep_stmt.bind(7, d.scp);
+    g_dep_stmt.bind(8, d.cls);
+    g_dep_stmt.bind(9, d.opt ? 1 : 0);
+    g_dep_stmt.step();
+  }
 }
 
 void persist_pom(cavan::pom * pom, auto ftime) {
@@ -78,19 +96,8 @@ void persist_pom(cavan::pom * pom, auto ftime) {
   g_pom_stmt.bind(8, pom->parent.ver);
   g_pom_stmt.step();
 
-  for (auto &[d, _] : pom->deps) {
-    g_dep_stmt.reset();
-    g_dep_stmt.bind(1, g_pom_stmt.column_int(0));
-    g_dep_stmt.bind(2, *d.grp);
-    g_dep_stmt.bind(3, d.art);
-    g_dep_stmt.bind(4, *d.ver);
-    g_dep_stmt.bind(5, d.typ);
-    g_dep_stmt.bind(6, d.scp);
-    g_dep_stmt.bind(7, d.cls);
-    g_dep_stmt.bind(8, d.opt ? 1 : 0);
-    g_dep_stmt.step();
-  }
-  // for (auto &[d, _] : pom->deps_mgmt) {}
+  persist_deps(pom->deps, false);
+  persist_deps(pom->deps_mgmt, true);
   // for (auto &[d, _] : pom->props) {}
   // for (auto d : pom->modules) {}
 }
@@ -146,11 +153,14 @@ void dump_stats(tora::db & db) {
 }
 
 int main(int argc, char ** argv) try {
+  sitime::stopwatch t {};
   tora::db db { ":memory:" };
   setup_schema(db);
   prepare_statements(db);
   import_local_repo(db);
   dump_stats(db);
+
+  silog::log(silog::info, "All of that done in %dms", t.millis());
 } catch (...) {
   return 1;
 }
