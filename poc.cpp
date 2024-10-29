@@ -52,11 +52,17 @@ void prepare_statements(tora::db & db) {
       filename, fmod,
       group_id, artefact_id, version,
       p_group_id, p_artefact_id, p_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING id
   )");
   g_dep_stmt = db.prepare(R"(
     INSERT INTO dep (
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      owner_pom,
+      group_id, artefact_id, version,
+      type, scope, classification, optional
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   )");
 }
 
@@ -72,7 +78,18 @@ void persist_pom(cavan::pom * pom, auto ftime) {
   g_pom_stmt.bind(8, pom->parent.ver);
   g_pom_stmt.step();
 
-  // for (auto &[d, _] : pom->deps) {}
+  for (auto &[d, _] : pom->deps) {
+    g_dep_stmt.reset();
+    g_dep_stmt.bind(1, g_pom_stmt.column_int(0));
+    g_dep_stmt.bind(2, *d.grp);
+    g_dep_stmt.bind(3, d.art);
+    g_dep_stmt.bind(4, *d.ver);
+    g_dep_stmt.bind(5, d.typ);
+    g_dep_stmt.bind(6, d.scp);
+    g_dep_stmt.bind(7, d.cls);
+    g_dep_stmt.bind(8, d.opt ? 1 : 0);
+    g_dep_stmt.step();
+  }
   // for (auto &[d, _] : pom->deps_mgmt) {}
   // for (auto &[d, _] : pom->props) {}
   // for (auto d : pom->modules) {}
@@ -118,11 +135,22 @@ void import_local_repo(tora::db & db) {
   )");
 }
 
+void dump_stats(tora::db & db) {
+  auto stmt = db.prepare("SELECT COUNT(*) FROM pom");
+  stmt.step();
+  silog::trace("poms", stmt.column_int(0));
+
+  stmt = db.prepare("SELECT COUNT(*) FROM dep");
+  stmt.step();
+  silog::trace("deps", stmt.column_int(0));
+}
+
 int main(int argc, char ** argv) try {
-  tora::db db { "out/test.sql" };
+  tora::db db { ":memory:" };
   setup_schema(db);
   prepare_statements(db);
   import_local_repo(db);
+  dump_stats(db);
 } catch (...) {
   return 1;
 }
