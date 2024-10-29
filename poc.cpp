@@ -19,7 +19,10 @@ void init(tora::db & db) {
       artefact_id TEXT NOT NULL,
       version     TEXT NOT NULL,
 
-      parent  INTEGER REFERENCES pom(id)
+      p_group_id    TEXT,
+      p_artefact_id TEXT,
+      p_version     TEXT,
+      parent        INTEGER REFERENCES pom(id)
     ) STRICT;
   )");
 }
@@ -31,6 +34,9 @@ void persist_pom(tora::stmt & stmt, cavan::pom * pom, auto ftime) {
   stmt.bind(3, pom->grp);
   stmt.bind(4, pom->art);
   stmt.bind(5, pom->ver);
+  stmt.bind(6, pom->parent.grp);
+  stmt.bind(7, pom->parent.art);
+  stmt.bind(8, pom->parent.ver);
   stmt.step();
 }
 
@@ -68,8 +74,10 @@ int main(int argc, char ** argv) try {
 
   auto stmt = db.prepare(R"(
     INSERT INTO pom (
-      filename, fmod, group_id, artefact_id, version, parent
-    ) VALUES (?, ?, ?, ?, ?, ?)
+      filename, fmod,
+      group_id, artefact_id, version,
+      p_group_id, p_artefact_id, p_version
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   )");
   recurse(stmt, repo_dir, "");
 } catch (...) {
