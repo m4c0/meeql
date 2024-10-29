@@ -15,6 +15,7 @@ static tora::stmt g_pom_stmt;
 static tora::stmt g_dep_stmt;
 static tora::stmt g_prop_stmt;
 static tora::stmt g_mod_stmt;
+static tora::stmt g_excl_stmt;
 
 void setup_schema(tora::db & db) {
   db.exec(R"(
@@ -61,6 +62,14 @@ void setup_schema(tora::db & db) {
 
       name TEXT NOT NULL
     ) STRICT;
+
+    CREATE TABLE excl (
+      id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      owner_dep INTEGER NOT NULL REFERENCES dep(id),
+
+      group_id    TEXT NOT NULL,
+      artefact_id TEXT NOT NULL
+    ) STRICT;
   )");
 }
 
@@ -81,6 +90,7 @@ void prepare_statements(tora::db & db) {
       type, scope, classification, optional
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING id
   )");
   g_prop_stmt = db.prepare(R"(
     INSERT INTO prop (owner_pom, key, value)
@@ -89,6 +99,10 @@ void prepare_statements(tora::db & db) {
   g_mod_stmt = db.prepare(R"(
     INSERT INTO mod (owner_pom, name)
     VALUES (?, ?)
+  )");
+  g_excl_stmt = db.prepare(R"(
+    INSERT INTO excl (owner_dep, group_id, artefact_id)
+    VALUES (?, ?, ?)
   )");
 }
 
@@ -105,6 +119,14 @@ void persist_deps(const cavan::deps & list, bool dm) {
     g_dep_stmt.bind(8, d.cls);
     g_dep_stmt.bind(9, d.opt ? 1 : 0);
     g_dep_stmt.step();
+
+    if (d.exc) for (auto & e: *d.exc) {
+      g_excl_stmt.reset();
+      g_excl_stmt.bind(1, g_dep_stmt.column_int(0));
+      g_excl_stmt.bind(2, e.grp);
+      g_excl_stmt.bind(3, e.art);
+      g_excl_stmt.step();
+    }
   }
 }
 
@@ -194,6 +216,10 @@ void dump_stats(tora::db & db) {
   stmt = db.prepare("SELECT COUNT(*) FROM mod");
   stmt.step();
   silog::trace("mods", stmt.column_int(0));
+
+  stmt = db.prepare("SELECT COUNT(*) FROM excl");
+  stmt.step();
+  silog::trace("excls", stmt.column_int(0));
 }
 
 int main(int argc, char ** argv) try {
