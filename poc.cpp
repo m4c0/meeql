@@ -8,7 +8,9 @@ import pprent;
 import silog;
 import tora;
 
-void init(tora::db & db) {
+static const auto repo_dir = (jute::view::unsafe(getenv("HOME")) + "/.m2/repository").cstr();
+
+void setup_schema(tora::db & db) {
   db.exec(R"(
     CREATE TABLE pom (
       id       INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +42,7 @@ void persist_pom(tora::stmt & stmt, cavan::pom * pom, auto ftime) {
   stmt.step();
 }
 
-void process_dep(tora::stmt & stmt, jute::view repo_dir, jute::view path) {
+void process_dep(tora::stmt & stmt, jute::view path) {
   auto [l_ver, ver] = path.rsplit('/');
   auto [l_art, art] = l_ver.rsplit('/');
 
@@ -53,25 +55,20 @@ void process_dep(tora::stmt & stmt, jute::view repo_dir, jute::view path) {
   persist_pom(stmt, pom, ftime);
 }
 
-void recurse(tora::stmt & stmt, jute::view repo_dir, jute::view path) {
+void recurse(tora::stmt & stmt, jute::view path) {
   auto full_path = (repo_dir + path).cstr();
   auto marker = repo_dir + path + "/_remote.repositories";
   if (mtime::of(marker.cstr().begin())) {
-    process_dep(stmt, repo_dir, path);
+    process_dep(stmt, path);
     return;
   }
   for (auto f : pprent::list(full_path.begin())) {
     if (f[0] == '.') continue;
     auto dir = (path + "/" + jute::view::unsafe(f)).cstr();
-    recurse(stmt, repo_dir, dir);
+    recurse(stmt, dir);
   }
 }
-
-int main(int argc, char ** argv) try {
-  const auto repo_dir = (jute::view::unsafe(getenv("HOME")) + "/.m2/repository").cstr();
-  tora::db db { ":memory:" };
-  init(db);
-
+void import_local_repo(tora::db & db) {
   auto stmt = db.prepare(R"(
     INSERT INTO pom (
       filename, fmod,
@@ -79,7 +76,13 @@ int main(int argc, char ** argv) try {
       p_group_id, p_artefact_id, p_version
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   )");
-  recurse(stmt, repo_dir, "");
+  recurse(stmt, "");
+}
+
+int main(int argc, char ** argv) try {
+  tora::db db { ":memory:" };
+  setup_schema(db);
+  import_local_repo(db);
 } catch (...) {
   return 1;
 }
