@@ -77,6 +77,16 @@ void import_local_repo(tora::db & db) {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   )");
   recurse(stmt, "");
+
+  // Update parent keys with their IDs
+  db.exec(R"(
+    UPDATE OR IGNORE pom AS p
+    SET parent = par.id
+      FROM pom AS par
+      WHERE par.group_id    = p.p_group_id
+        AND par.artefact_id = p.p_artefact_id
+        AND par.version     = p.p_version
+  )");
 }
 
 int main(int argc, char ** argv) try {
