@@ -1,4 +1,5 @@
 #pragma leco tool
+#include <stdio.h>
 #include <stdlib.h>
 
 import cavan;
@@ -9,7 +10,8 @@ import silog;
 import sitime;
 import tora;
 
-static const auto repo_dir = (jute::view::unsafe(getenv("HOME")) + "/.m2/repository").cstr();
+static const auto home_dir = jute::view::unsafe(getenv("HOME"));
+static const auto repo_dir = (home_dir + "/.m2/repository").cstr();
 
 static tora::stmt g_pom_stmt;
 static tora::stmt g_dep_stmt;
@@ -224,7 +226,11 @@ void dump_stats(tora::db & db) {
 
 int main(int argc, char ** argv) try {
   sitime::stopwatch t {};
-  tora::db db { ":memory:" };
+
+  auto file = (home_dir + "/.m2/meeql").cstr();
+  remove(file.begin());
+
+  tora::db db { file.begin() };
   setup_schema(db);
   prepare_statements(db);
   import_local_repo(db);
