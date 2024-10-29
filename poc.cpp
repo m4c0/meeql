@@ -13,6 +13,8 @@ static const auto repo_dir = (jute::view::unsafe(getenv("HOME")) + "/.m2/reposit
 
 static tora::stmt g_pom_stmt;
 static tora::stmt g_dep_stmt;
+static tora::stmt g_prop_stmt;
+static tora::stmt g_mod_stmt;
 
 void setup_schema(tora::db & db) {
   db.exec(R"(
@@ -33,7 +35,6 @@ void setup_schema(tora::db & db) {
 
     CREATE TABLE dep (
       id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-
       owner_pom INTEGER NOT NULL REFERENCES pom(id),
       dep_mgmt  INTEGER NOT NULL,
 
@@ -44,6 +45,21 @@ void setup_schema(tora::db & db) {
       scope          TEXT DEFAULT 'compile',
       classification TEXT,
       optional       INTEGER NOT NULL
+    ) STRICT;
+
+    CREATE TABLE prop (
+      id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      owner_pom INTEGER NOT NULL REFERENCES pom(id),
+
+      key   TEXT NOT NULL,
+      value TEXT NULL
+    ) STRICT;
+
+    CREATE TABLE mod (
+      id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      owner_pom INTEGER NOT NULL REFERENCES pom(id),
+
+      name TEXT NOT NULL
     ) STRICT;
   )");
 }
@@ -65,6 +81,14 @@ void prepare_statements(tora::db & db) {
       type, scope, classification, optional
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  )");
+  g_prop_stmt = db.prepare(R"(
+    INSERT INTO prop (owner_pom, key, value)
+    VALUES (?, ?, ?)
+  )");
+  g_mod_stmt = db.prepare(R"(
+    INSERT INTO mod (owner_pom, name)
+    VALUES (?, ?)
   )");
 }
 
@@ -98,8 +122,20 @@ void persist_pom(cavan::pom * pom, auto ftime) {
 
   persist_deps(pom->deps, false);
   persist_deps(pom->deps_mgmt, true);
-  // for (auto &[d, _] : pom->props) {}
-  // for (auto d : pom->modules) {}
+  
+  for (auto &[k, v] : pom->props) {
+    g_prop_stmt.reset();
+    g_prop_stmt.bind(1, g_pom_stmt.column_int(0));
+    g_prop_stmt.bind(2, k);
+    g_prop_stmt.bind(3, v);
+    g_prop_stmt.step();
+  }
+  for (auto m : pom->modules) {
+    g_mod_stmt.reset();
+    g_mod_stmt.bind(1, g_pom_stmt.column_int(0));
+    g_mod_stmt.bind(2, m);
+    g_mod_stmt.step();
+  }
 }
 
 void process_dep(jute::view path) {
@@ -150,6 +186,14 @@ void dump_stats(tora::db & db) {
   stmt = db.prepare("SELECT COUNT(*) FROM dep");
   stmt.step();
   silog::trace("deps", stmt.column_int(0));
+
+  stmt = db.prepare("SELECT COUNT(*) FROM prop");
+  stmt.step();
+  silog::trace("props", stmt.column_int(0));
+
+  stmt = db.prepare("SELECT COUNT(*) FROM mod");
+  stmt.step();
+  silog::trace("mods", stmt.column_int(0));
 }
 
 int main(int argc, char ** argv) try {
