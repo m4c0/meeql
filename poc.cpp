@@ -24,16 +24,27 @@ void init(tora::db & db) {
   )");
 }
 
-void process_dep(tora::db & db, jute::view repo_dir, jute::view path) {
+void persist_pom(tora::stmt & stmt, cavan::pom * pom, auto ftime) {
+  stmt.reset();
+  stmt.bind(1, pom->filename);
+  stmt.bind(2, ftime);
+  stmt.bind(3, pom->grp);
+  stmt.bind(4, pom->art);
+  stmt.bind(5, pom->ver);
+  stmt.step();
+}
+
+void process_dep(tora::stmt & stmt, jute::view repo_dir, jute::view path) {
   auto [l_ver, ver] = path.rsplit('/');
   auto [l_art, art] = l_ver.rsplit('/');
 
   auto fname = (repo_dir + path + "/" + art + "-" + ver + ".pom").cstr();
+  auto ftime = mtime::of(fname.begin());
   // Some dependencies might not have a pom for reasons
-  if (mtime::of(fname.begin()) == 0) return;
+  if (ftime == 0) return;
 
   auto pom = cavan::read_pom(fname);
-  silog::trace(jute::view{pom->filename});
+  persist_pom(stmt, pom, ftime);
 }
 
 void recurse(tora::stmt & stmt, jute::view repo_dir, jute::view path) {
