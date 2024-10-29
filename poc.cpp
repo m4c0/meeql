@@ -3,6 +3,7 @@
 
 import cavan;
 import jute;
+import mtime;
 import pprent;
 import silog;
 import tora;
@@ -27,8 +28,12 @@ void process_dep(tora::db & db, jute::view repo_dir, jute::view path) {
   auto [l_ver, ver] = path.rsplit('/');
   auto [l_art, art] = l_ver.rsplit('/');
 
-  auto pom = repo_dir + path + "/" + art + "-" + ver + ".pom";
-  silog::trace(jute::view{pom.cstr()});
+  auto fname = (repo_dir + path + "/" + art + "-" + ver + ".pom").cstr();
+  // Some dependencies might not have a pom for reasons
+  if (mtime::of(fname.begin()) == 0) return;
+
+  auto pom = cavan::read_pom(fname);
+  silog::trace(jute::view{pom->filename});
 }
 
 void recurse(tora::db & db, jute::view repo_dir, jute::view path) {
