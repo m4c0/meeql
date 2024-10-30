@@ -39,16 +39,23 @@ int main(int argc, char ** argv) {
 
   db.exec(R"(
     CREATE TEMP TABLE eff_prop AS
-    SELECT prop.key, prop.value
+    SELECT prop.*
     FROM prop
     JOIN pom_chain ON pom_chain.id = prop.owner_pom
     GROUP BY 1
     HAVING depth = MIN(depth)
   )");
+  db.exec(R"(
+    CREATE TEMP TABLE eff_dep AS
+    SELECT dep.*
+    FROM dep
+    JOIN pom_chain ON pom_chain.id = dep.owner_pom
+    GROUP BY 1, 2
+    HAVING depth = MIN(depth)
+  )");
 
   stmt = db.prepare(R"(
-    SELECT key, value
-    FROM eff_prop
+    SELECT key, value FROM eff_prop
   )");
   while (stmt.step()) {
     silog::log(silog::debug, "%s = [%s]",
@@ -57,11 +64,8 @@ int main(int argc, char ** argv) {
   }
 
   stmt = db.prepare(R"(
-    SELECT dep.dep_mgmt, dep.group_id, dep.artefact_id, dep.version
-    FROM dep
-    JOIN pom_chain ON pom_chain.id = dep.owner_pom
-    GROUP BY 1, 2
-    HAVING depth = MIN(depth)
+    SELECT dep_mgmt, group_id, artefact_id, version
+    FROM eff_dep
   )");
   while (stmt.step()) {
     silog::log(silog::debug, "%d %s:%s:%s",
