@@ -7,14 +7,40 @@ import silog;
 
 static const auto home_dir = jute::view::unsafe(getenv("HOME"));
 
+static auto v(const unsigned char * n) {
+  if (!n) return jute::view {};
+  return jute::view::unsafe(reinterpret_cast<const char *>(n));
+}
+
 jute::heap prop(tora::db & db, jute::view name) {
   auto stmt = db.prepare(R"(
     SELECT value FROM eff_prop WHERE key = ?
   )");
   stmt.bind(1, name);
   if (!stmt.step()) return {};
-  auto val = reinterpret_cast<const char *>(stmt.column_text(0));
-  return jute::view::unsafe(val);
+  return v(stmt.column_text(0));
+}
+
+jute::heap apply_props(tora::db & db, jute::view in) {
+  jute::heap str { in };
+  for (unsigned i = 0; i < str.size(); i++) {
+    if ((*str)[i] != '$') continue;
+    if ((*str)[i + 1] != '{') continue;
+
+    unsigned j {};
+    for (j = i; j < str.size() && (*str)[j] != '}'; j++) {
+    }
+
+    if (j == str.size()) return str;
+
+    jute::view before { str.begin(), i };
+    jute::view name { str.begin() + i + 2, j - i - 2 };
+    jute::view after { str.begin() + j + 1, str.size() - j - 1 };
+
+    str = before + *prop(db, name) + after;
+    i--;
+  }
+  return str;
 }
 
 int main(int argc, char ** argv) {
@@ -73,9 +99,6 @@ int main(int argc, char ** argv) {
         stmt.column_int(0),
         stmt.column_text(1),
         stmt.column_text(2),
-        stmt.column_text(3));
+        apply_props(db, v(stmt.column_text(3))).begin());
   }
-
-  silog::trace(prop(db, "project.version"));
-  silog::trace(prop(db, "something-invalid"));
 }
