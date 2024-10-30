@@ -26,11 +26,31 @@ int main(int argc, char ** argv) {
         SELECT pom.parent, pom_chain.root, pom_chain.depth + 1
         FROM pom
         JOIN pom_chain ON pom_chain.id = pom.id
-        ORDER BY 2 ASC
       )
     SELECT * FROM pom_chain
   )");
 
+  auto stmt = db.prepare(R"(
+    SELECT prop.key, prop.value
+    FROM prop
+    JOIN pom_chain ON pom_chain.id = prop.owner_pom
+    JOIN pom ON pom_chain.root = pom.id
+    WHERE pom.group_id = ?
+      AND pom.artefact_id = ?
+      AND pom.version = ?
+    GROUP BY 1
+    HAVING depth = MIN(depth)
+  )");
+  stmt.bind(1, jute::view::unsafe(argv[1]));
+  stmt.bind(2, jute::view::unsafe(argv[2]));
+  stmt.bind(3, jute::view::unsafe(argv[3]));
+  while (stmt.step()) {
+    silog::log(silog::debug, "%s = [%s]",
+        stmt.column_text(0),
+        stmt.column_text(1));
+  }
+
+#if 0
   auto stmt = db.prepare(R"(
     SELECT dep.group_id, dep.artefact_id, dep.version, pom_chain.depth
     FROM dep
@@ -50,4 +70,5 @@ int main(int argc, char ** argv) {
         stmt.column_text(1),
         stmt.column_text(2));
   }
+#endif
 }
