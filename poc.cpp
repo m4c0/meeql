@@ -42,7 +42,7 @@ int main(int argc, char ** argv) {
     SELECT prop.*
     FROM prop
     JOIN pom_chain ON pom_chain.id = prop.owner_pom
-    GROUP BY 1
+    GROUP BY prop.key
     HAVING depth = MIN(depth)
   )");
   db.exec(R"(
@@ -50,7 +50,7 @@ int main(int argc, char ** argv) {
     SELECT dep.*
     FROM dep
     JOIN pom_chain ON pom_chain.id = dep.owner_pom
-    GROUP BY 1, 2
+    GROUP BY dep.group_id, dep.artefact_id
     HAVING depth = MIN(depth)
   )");
 
