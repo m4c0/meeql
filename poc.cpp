@@ -99,6 +99,9 @@ int main(int argc, char ** argv) {
      AND d.artefact_id = dm.artefact_id
      AND dm.dep_mgmt = 1
     WHERE d.dep_mgmt = 0
+      AND COALESCE(d.scope, 'compile') IN ('test', 'compile')
+      AND COALESCE(d.type, 'jar') = 'jar'
+      AND NOT d.optional
   )");
   while (stmt.step()) {
     silog::log(silog::debug, "%s:%s:%s",
