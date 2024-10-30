@@ -7,6 +7,16 @@ import silog;
 
 static const auto home_dir = jute::view::unsafe(getenv("HOME"));
 
+jute::heap prop(tora::db & db, jute::view name) {
+  auto stmt = db.prepare(R"(
+    SELECT value FROM eff_prop WHERE key = ?
+  )");
+  stmt.bind(1, name);
+  if (!stmt.step()) return {};
+  auto val = reinterpret_cast<const char *>(stmt.column_text(0));
+  return jute::view::unsafe(val);
+}
+
 int main(int argc, char ** argv) {
   if (argc < 3) {
     silog::log(silog::error, "requires group/artefact/version");
@@ -55,15 +65,6 @@ int main(int argc, char ** argv) {
   )");
 
   stmt = db.prepare(R"(
-    SELECT key, value FROM eff_prop
-  )");
-  while (stmt.step()) {
-    silog::log(silog::debug, "%s = [%s]",
-        stmt.column_text(0),
-        stmt.column_text(1));
-  }
-
-  stmt = db.prepare(R"(
     SELECT dep_mgmt, group_id, artefact_id, version
     FROM eff_dep
   )");
@@ -74,4 +75,7 @@ int main(int argc, char ** argv) {
         stmt.column_text(2),
         stmt.column_text(3));
   }
+
+  silog::trace(prop(db, "project.version"));
+  silog::trace(prop(db, "something-invalid"));
 }
