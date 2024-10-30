@@ -17,18 +17,29 @@ int main(int argc, char ** argv) {
   tora::db db { file.begin() };
 
   auto stmt = db.prepare(R"(
-    SELECT dep.group_id, dep.artefact_id, dep.version
+    WITH RECURSIVE
+      pom_chain(id, depth) AS (
+        SELECT id, 0
+        FROM pom
+        WHERE group_id = ?
+          AND artefact_id = ?
+          AND version = ?
+        UNION ALL
+        SELECT pom.parent, pom_chain.depth + 1
+        FROM pom
+        JOIN pom_chain ON pom_chain.id = pom.id
+        ORDER BY 2 ASC
+      )
+    SELECT dep.group_id, dep.artefact_id, dep.version, pom_chain.depth
     FROM dep
-    JOIN pom ON pom.id = dep.owner_pom
-    WHERE pom.group_id = ?
-      AND pom.artefact_id = ?
-      AND pom.version = ?
+    JOIN pom_chain ON pom_chain.id = dep.owner_pom
   )");
   stmt.bind(1, jute::view::unsafe(argv[1]));
   stmt.bind(2, jute::view::unsafe(argv[2]));
   stmt.bind(3, jute::view::unsafe(argv[3]));
   while (stmt.step()) {
-    silog::log(silog::debug, "%s:%s:%s",
+    silog::log(silog::debug, "%*s%s:%s:%s",
+        stmt.column_int(3), "",
         stmt.column_text(0),
         stmt.column_text(1),
         stmt.column_text(2));
