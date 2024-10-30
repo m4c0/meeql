@@ -86,19 +86,24 @@ int main(int argc, char ** argv) {
     SELECT dep.*
     FROM dep
     JOIN pom_chain ON pom_chain.id = dep.owner_pom
-    GROUP BY dep.group_id, dep.artefact_id
+    GROUP BY dep.dep_mgmt, dep.group_id, dep.artefact_id
     HAVING depth = MIN(depth)
   )");
 
   stmt = db.prepare(R"(
-    SELECT dep_mgmt, group_id, artefact_id, version
-    FROM eff_dep
+    SELECT d.group_id, d.artefact_id
+         , COALESCE(d.version, dm.version)
+    FROM eff_dep AS d
+    LEFT JOIN eff_dep AS dm
+      ON d.group_id = dm.group_id
+     AND d.artefact_id = dm.artefact_id
+     AND dm.dep_mgmt = 1
+    WHERE d.dep_mgmt = 0
   )");
   while (stmt.step()) {
-    silog::log(silog::debug, "%d %s:%s:%s",
-        stmt.column_int(0),
+    silog::log(silog::debug, "%s:%s:%s",
+        stmt.column_text(0),
         stmt.column_text(1),
-        stmt.column_text(2),
-        apply_props(db, v(stmt.column_text(3))).begin());
+        apply_props(db, v(stmt.column_text(2))).begin());
   }
 }
