@@ -16,12 +16,15 @@ int main(int argc, char ** argv) {
   auto file = (home_dir + "/.m2/meeql").cstr();
   tora::db db { file.begin() };
 
-  db.exec(R"(
-    CREATE TEMP VIEW pom_chain AS
+  auto stmt = db.prepare(R"(
+    CREATE TEMP TABLE pom_chain AS
     WITH RECURSIVE
       pom_chain(id, root, depth) AS (
         SELECT id, id, 0
         FROM pom
+        WHERE pom.group_id = ?
+          AND pom.artefact_id = ?
+          AND pom.version = ?
         UNION ALL
         SELECT pom.parent, pom_chain.root, pom_chain.depth + 1
         FROM pom
@@ -29,21 +32,25 @@ int main(int argc, char ** argv) {
       )
     SELECT * FROM pom_chain
   )");
+  stmt.bind(1, jute::view::unsafe(argv[1]));
+  stmt.bind(2, jute::view::unsafe(argv[2]));
+  stmt.bind(3, jute::view::unsafe(argv[3]));
+  stmt.step();
 
-  auto stmt = db.prepare(R"(
+  db.exec(R"(
+    CREATE TEMP TABLE eff_prop AS
     SELECT prop.key, prop.value
     FROM prop
     JOIN pom_chain ON pom_chain.id = prop.owner_pom
     JOIN pom ON pom_chain.root = pom.id
-    WHERE pom.group_id = ?
-      AND pom.artefact_id = ?
-      AND pom.version = ?
     GROUP BY 1
     HAVING depth = MIN(depth)
   )");
-  stmt.bind(1, jute::view::unsafe(argv[1]));
-  stmt.bind(2, jute::view::unsafe(argv[2]));
-  stmt.bind(3, jute::view::unsafe(argv[3]));
+
+  stmt = db.prepare(R"(
+    SELECT key, value
+    FROM eff_prop
+  )");
   while (stmt.step()) {
     silog::log(silog::debug, "%s = [%s]",
         stmt.column_text(0),
