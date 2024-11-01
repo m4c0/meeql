@@ -119,6 +119,22 @@ int main(int argc, char ** argv) {
         AND id = e_id
     )");
   } while (db.changes() > 0);
+  silog::trace(3);
+
+  stmt = db.prepare(R"(
+    SELECT d.group_id || ":" || d.artefact_id || ":" || d.version
+    FROM eff_dep AS ed
+    JOIN pom AS p
+      ON p.group_id = ed.group_id
+     AND p.artefact_id = ed.artefact_id
+     AND p.version = ed.version
+    JOIN dep AS d ON d.owner_pom = p.id
+    WHERE ed.scope = 'import' AND ed.type = 'pom'
+  )");
+  while (stmt.step()) {
+    putln((const char *)stmt.column_text(0));
+  }
+  silog::trace(5);
 
   stmt = db.prepare(R"(
     SELECT d.group_id, d.artefact_id
