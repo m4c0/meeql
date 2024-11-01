@@ -6,8 +6,8 @@ int main() {
   auto db = meeql::db();
 
   db.exec(R"(
-    DROP TABLE IF EXISTS f_pom_tree;
-    CREATE TABLE f_pom_tree AS
+    DROP VIEW IF EXISTS f_pom_tree;
+    CREATE VIEW f_pom_tree AS
     WITH RECURSIVE
       pom_chain(id, root, depth) AS (
         SELECT id, id, 0
@@ -19,9 +19,6 @@ int main() {
         WHERE pom.parent IS NOT NULL
       )
     SELECT * FROM pom_chain;
-
-    DROP INDEX IF EXISTS if_pom_tree_root;
-    CREATE INDEX if_pom_tree_root ON f_pom_tree (root);
 
     DROP VIEW IF EXISTS f_prop;
     CREATE VIEW f_prop AS
