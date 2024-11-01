@@ -66,39 +66,44 @@ int main(int argc, char ** argv) {
 
   auto db = meeql::db();
 
-  sqlite3_create_function(db.handle(), "propinator", 1, SQLITE_UTF8, nullptr, prop_fn, nullptr, nullptr);
+  auto flags = SQLITE_DETERMINISTIC | SQLITE_UTF8;
+  sqlite3_create_function(db.handle(), "propinator", 1, flags, nullptr, prop_fn, nullptr, nullptr);
 
   auto stmt = db.prepare(R"(
-    CREATE TEMP TABLE pom_chain AS
-    SELECT f.*
-    FROM f_pom_tree AS f
-    JOIN pom ON pom.id = f.root
-    WHERE pom.group_id = ?
-      AND pom.artefact_id = ?
-      AND pom.version = ?
+    SELECT id
+    FROM pom
+    WHERE group_id = ?
+      AND artefact_id = ?
+      AND version = ?
   )");
   stmt.bind(1, jute::view::unsafe(argv[1]));
   stmt.bind(2, jute::view::unsafe(argv[2]));
   stmt.bind(3, jute::view::unsafe(argv[3]));
+  if (!stmt.step()) silog::die("could not find POM");
+  auto pom_id = stmt.column_int(0);
+
+  // Creates the effective props and deps lists from the parent chain
+  silog::trace(1);
+  stmt = db.prepare(R"(
+    CREATE TEMP TABLE eff_dep AS
+    SELECT *
+    FROM f_dep
+    WHERE root = ?
+  )");
+  stmt.bind(1, pom_id);
   stmt.step();
 
-  db.exec(R"(
+  stmt = db.prepare(R"(
     CREATE TEMP TABLE eff_prop AS
-    SELECT prop.*
-    FROM prop
-    JOIN pom_chain ON pom_chain.id = prop.owner_pom
-    GROUP BY prop.key
-    HAVING depth = MIN(depth)
+    SELECT *
+    FROM f_prop
+    WHERE root = ?
   )");
-  db.exec(R"(
-    CREATE TEMP TABLE eff_dep AS
-    SELECT dep.*
-    FROM dep
-    JOIN pom_chain ON pom_chain.id = dep.owner_pom
-    GROUP BY dep.dep_mgmt, dep.group_id, dep.artefact_id
-    HAVING depth = MIN(depth)
-  )");
+  stmt.bind(1, pom_id);
+  stmt.step();
 
+  silog::trace(2);
+  // Recursively apply properties to effective deps
   do {
     db.exec(R"(
       UPDATE eff_dep
