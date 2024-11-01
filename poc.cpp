@@ -1,13 +1,10 @@
 #pragma leco tool
 #include "../tora/sqlite3.h"
-#include <stdlib.h>
 
 import jute;
+import meeql;
 import print;
 import silog;
-import tora;
-
-static const auto home_dir = jute::view::unsafe(getenv("HOME"));
 
 static auto v(const unsigned char * n) {
   if (!n) return jute::view {};
@@ -67,26 +64,18 @@ int main(int argc, char ** argv) {
     return 1;
   }
 
-  auto file = (home_dir + "/.m2/meeql").cstr();
-  tora::db db { file.begin() };
+  auto db = meeql::db();
 
   sqlite3_create_function(db.handle(), "propinator", 1, SQLITE_UTF8, nullptr, prop_fn, nullptr, nullptr);
 
   auto stmt = db.prepare(R"(
     CREATE TEMP TABLE pom_chain AS
-    WITH RECURSIVE
-      pom_chain(id, root, depth) AS (
-        SELECT id, id, 0
-        FROM pom
-        WHERE pom.group_id = ?
-          AND pom.artefact_id = ?
-          AND pom.version = ?
-        UNION ALL
-        SELECT pom.parent, pom_chain.root, pom_chain.depth + 1
-        FROM pom
-        JOIN pom_chain ON pom_chain.id = pom.id
-      )
-    SELECT * FROM pom_chain
+    SELECT f.*
+    FROM f_pom_tree AS f
+    JOIN pom ON pom.id = f.root
+    WHERE pom.group_id = ?
+      AND pom.artefact_id = ?
+      AND pom.version = ?
   )");
   stmt.bind(1, jute::view::unsafe(argv[1]));
   stmt.bind(2, jute::view::unsafe(argv[2]));
