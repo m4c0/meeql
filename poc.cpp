@@ -110,6 +110,22 @@ int main(int argc, char ** argv) {
     HAVING depth = MIN(depth)
   )");
 
+  do {
+    db.exec(R"(
+      UPDATE eff_dep
+      SET version = e_version
+      FROM (
+        SELECT ed.id AS e_id
+             , REPLACE(ed.version, '${' || propinator(ed.version) || '}', ep.value) AS e_version
+        FROM eff_dep AS ed
+        LEFT JOIN eff_prop AS ep
+               ON ep.key = propinator(ed.version)
+      )
+      WHERE version LIKE '%${%'
+        AND id = e_id
+    )");
+  } while (db.changes() > 0);
+
   stmt = db.prepare(R"(
     SELECT d.group_id, d.artefact_id
          , COALESCE(d.version, dm.version)
@@ -124,9 +140,9 @@ int main(int argc, char ** argv) {
       AND NOT d.optional
   )");
   while (stmt.step()) {
-    silog::log(silog::debug, "%s:%s:%s",
+    putfn("%s:%s:%s",
         stmt.column_text(0),
         stmt.column_text(1),
-        apply_props(db, v(stmt.column_text(2))).begin());
+        stmt.column_text(2));
   }
 }
