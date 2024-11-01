@@ -1,9 +1,11 @@
 #pragma leco tool
+#include "../tora/sqlite3.h"
 #include <stdlib.h>
 
 import jute;
-import tora;
+import print;
 import silog;
+import tora;
 
 static const auto home_dir = jute::view::unsafe(getenv("HOME"));
 
@@ -43,6 +45,22 @@ jute::heap apply_props(tora::db & db, jute::view in) {
   return str;
 }
 
+void prop_fn(sqlite3_context * ctx, int argc, sqlite3_value ** argv) {
+  silog::assert(argc == 1, "expecting only a single argument");
+  auto val = v(sqlite3_value_text(argv[0]));
+  for (unsigned i = 0; i < val.size(); i++) {
+    if (val[i] != '$') continue;
+    if (val[i + 1] != '{') continue;
+
+    for (unsigned j = i + 2; j < val.size(); j++) {
+      if (val[j] != '}') continue;
+
+      return sqlite3_result_text(ctx, val.begin() + i + 2, j - i - 2, SQLITE_TRANSIENT);
+    }
+  }
+  return sqlite3_result_null(ctx);
+}
+
 int main(int argc, char ** argv) {
   if (argc < 3) {
     silog::log(silog::error, "requires group/artefact/version");
@@ -51,6 +69,8 @@ int main(int argc, char ** argv) {
 
   auto file = (home_dir + "/.m2/meeql").cstr();
   tora::db db { file.begin() };
+
+  sqlite3_create_function(db.handle(), "propinator", 1, SQLITE_UTF8, nullptr, prop_fn, nullptr, nullptr);
 
   auto stmt = db.prepare(R"(
     CREATE TEMP TABLE pom_chain AS
