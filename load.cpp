@@ -38,8 +38,10 @@ void setup_schema(tora::db & db) {
 
     CREATE TABLE dep (
       id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      owner_pom INTEGER NOT NULL REFERENCES pom(id),
-      dep_mgmt  INTEGER NOT NULL,
+      dep_mgmt   INTEGER NOT NULL,
+
+      owner_pom  INTEGER NOT NULL REFERENCES pom(id),
+      target_pom INTEGER REFERENCES pom(id),
 
       group_id       TEXT NOT NULL,
       artefact_id    TEXT NOT NULL,
@@ -199,6 +201,15 @@ void import_local_repo(tora::db & db) {
       WHERE par.group_id    = p.p_group_id
         AND par.artefact_id = p.p_artefact_id
         AND par.version     = p.p_version
+  )");
+  // Update dependencies with a link to the referred pom
+  db.exec(R"(
+    UPDATE OR IGNORE dep
+    SET target_pom = pom.id
+    FROM pom
+    WHERE pom.group_id    = dep.group_id
+      AND pom.artefact_id = dep.artefact_id
+      AND pom.version     = dep.version
   )");
 }
 
