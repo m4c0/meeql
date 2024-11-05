@@ -222,19 +222,21 @@ void setup_aux_tables(tora::db & db) {
       )
     SELECT * FROM pom_chain;
 
-    CREATE VIEW f_prop AS
-    SELECT t.root, prop.*, t.depth
+    CREATE TABLE f_prop AS
+    SELECT t.root, prop.id, t.depth
     FROM prop
     JOIN f_pom_tree t ON t.id = prop.owner_pom
     GROUP BY t.root, prop.key
     HAVING depth = MIN(depth);
 
-    CREATE VIEW f_dep AS
-    SELECT t.root, dep.*, depth
+    CREATE TABLE f_dep AS
+    SELECT t.root, dep.id, depth
     FROM dep
     JOIN f_pom_tree t ON t.id = dep.owner_pom
     GROUP BY t.root, dep.dep_mgmt, dep.group_id, dep.artefact_id
     HAVING depth = MIN(depth);
+
+    CREATE INDEX ifd_root ON f_dep (root);
   )");
 }
 
@@ -258,6 +260,14 @@ void dump_stats(tora::db & db) {
   stmt = db.prepare("SELECT COUNT(*) FROM excl");
   stmt.step();
   silog::trace("excls", stmt.column_int(0));
+
+  stmt = db.prepare("SELECT COUNT(*) FROM f_prop");
+  stmt.step();
+  silog::trace("eff. props", stmt.column_int(0));
+
+  stmt = db.prepare("SELECT COUNT(*) FROM f_dep");
+  stmt.step();
+  silog::trace("eff. deps", stmt.column_int(0));
 }
 
 int main(int argc, char ** argv) try {
