@@ -51,6 +51,8 @@ int main(int argc, char ** argv) {
       AND COALESCE(d.scope, 'compile') IN ('test', 'compile')
       AND COALESCE(d.type, 'jar') = 'jar'
       AND NOT d.optional
+    GROUP BY d.group_id, d.artefact_id
+    HAVING d.depth = MIN(d.depth)
   )");
   while (stmt.step()) {
     putfn("%s:%s:%s",
