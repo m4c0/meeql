@@ -229,6 +229,8 @@ void setup_aux_tables(tora::db & db) {
     GROUP BY t.root, prop.key
     HAVING depth = MIN(depth);
 
+    CREATE INDEX ifp_root ON f_prop (root);
+
     CREATE TABLE f_dep AS
     SELECT t.root, dep.id, depth
     FROM dep
