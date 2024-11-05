@@ -11,37 +11,6 @@ static auto v(const unsigned char * n) {
   return jute::view::unsafe(reinterpret_cast<const char *>(n));
 }
 
-jute::heap prop(tora::db & db, jute::view name) {
-  auto stmt = db.prepare(R"(
-    SELECT value FROM eff_prop WHERE key = ?
-  )");
-  stmt.bind(1, name);
-  if (!stmt.step()) return {};
-  return v(stmt.column_text(0));
-}
-
-jute::heap apply_props(tora::db & db, jute::view in) {
-  jute::heap str { in };
-  for (unsigned i = 0; i < str.size(); i++) {
-    if ((*str)[i] != '$') continue;
-    if ((*str)[i + 1] != '{') continue;
-
-    unsigned j {};
-    for (j = i; j < str.size() && (*str)[j] != '}'; j++) {
-    }
-
-    if (j == str.size()) return str;
-
-    jute::view before { str.begin(), i };
-    jute::view name { str.begin() + i + 2, j - i - 2 };
-    jute::view after { str.begin() + j + 1, str.size() - j - 1 };
-
-    str = before + *prop(db, name) + after;
-    i--;
-  }
-  return str;
-}
-
 void prop_fn(sqlite3_context * ctx, int argc, sqlite3_value ** argv) {
   silog::assert(argc == 1, "expecting only a single argument");
   auto val = v(sqlite3_value_text(argv[0]));
