@@ -86,8 +86,9 @@ int main(int argc, char ** argv) {
   silog::trace(1);
   stmt = db.prepare(R"(
     CREATE TEMP TABLE eff_dep AS
-    SELECT *
-    FROM f_dep
+    SELECT d.*, f.root, f.depth
+    FROM f_dep AS f
+    JOIN dep AS d ON f.id = d.id
     WHERE root = ?
   )");
   stmt.bind(1, pom_id);
@@ -95,8 +96,9 @@ int main(int argc, char ** argv) {
 
   stmt = db.prepare(R"(
     CREATE TEMP TABLE eff_prop AS
-    SELECT *
-    FROM f_prop
+    SELECT p.*, f.root, f.depth
+    FROM f_prop AS f
+    JOIN prop AS p ON f.id = p.id
     WHERE root = ?
   )");
   stmt.bind(1, pom_id);
@@ -121,15 +123,24 @@ int main(int argc, char ** argv) {
   } while (db.changes() > 0);
   silog::trace(3);
 
-  stmt = db.prepare(R"(
-    SELECT d.group_id || ":" || d.artefact_id || ":" || d.version
+  db.exec(R"(
+    CREATE TEMP TABLE x AS
+    SELECT dep.*, ed.depth + 1
     FROM eff_dep AS ed
-    JOIN pom AS p
-      ON p.group_id = ed.group_id
-     AND p.artefact_id = ed.artefact_id
-     AND p.version = ed.version
-    JOIN dep AS d ON d.owner_pom = p.id
+    JOIN pom
+      ON pom.group_id = ed.group_id
+     AND pom.artefact_id = ed.artefact_id
+     AND pom.version = ed.version
+    JOIN dep
+      ON dep.owner_pom = pom.id
     WHERE ed.scope = 'import' AND ed.type = 'pom'
+      AND dep.dep_mgmt = 1
+  )");
+
+  silog::trace(4);
+  stmt = db.prepare(R"(
+    SELECT group_id || ":" || artefact_id || ":" || version
+    FROM x
   )");
   while (stmt.step()) {
     putln((const char *)stmt.column_text(0));
