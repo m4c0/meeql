@@ -1,5 +1,6 @@
 #pragma leco tool
 
+import hai;
 import jute;
 import meeql;
 import print;
@@ -79,7 +80,7 @@ int main(int argc, char ** argv) {
   );
 
   while (true) {
-    jute::heap grp, art, ver;
+    hai::cstr grp, art, ver;
     {
       auto db = meeql::db();
       auto stmt = db.prepare(R"(
@@ -95,11 +96,11 @@ int main(int argc, char ** argv) {
         RETURNING group_id, artefact_id, version
       )");
       if (!stmt.step()) break;
-      grp = v(stmt.column_text(0));
-      art = v(stmt.column_text(1));
-      ver = v(stmt.column_text(2));
+      grp = v(stmt.column_text(0)).cstr();
+      art = v(stmt.column_text(1)).cstr();
+      ver = v(stmt.column_text(2)).cstr();
       putfn("%s:%s:%s", grp.begin(), art.begin(), ver.begin());
     }
-    work(*grp, *art, *ver, "compile");
+    work(grp, art, ver, "compile");
   }
 }
