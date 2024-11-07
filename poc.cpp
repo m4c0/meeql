@@ -14,26 +14,10 @@ static auto v(const unsigned char * n) {
 static void work(jute::view grp, jute::view art, jute::view ver, jute::view scope) {
   auto db = meeql::db();
 
-  silog::trace(1);
   meeql::eff(db, grp, art, ver, 0);
 
-  silog::trace(2);
   auto stmt = db.prepare(R"(
-    DELETE FROM eff_dep AS ed
-    WHERE scope = 'import' AND type = 'pom'
-    RETURNING group_id, artefact_id, version, depth
-  )");
-  while (stmt.step()) {
-    meeql::eff(db, 
-        v(stmt.column_text(0)),
-        v(stmt.column_text(1)),
-        v(stmt.column_text(2)),
-        stmt.column_int(3));
-  }
-  silog::trace(5);
-
-  stmt = db.prepare(R"(
-    INSERT OR IGNORE INTO r_deps (root, group_id, artefact_id, version)
+    INSERT OR IGNORE INTO r_deps (pom, group_id, artefact_id, version)
     SELECT d.root, d.group_id, d.artefact_id
          , COALESCE(d.version, dm.version)
     FROM eff_dep AS d
@@ -60,11 +44,10 @@ int main(int argc, char ** argv) {
     return 1;
   }
 
+  meeql::db().exec("DROP TABLE IF EXISTS r_deps");
   meeql::db().exec(R"(
-    DROP TABLE IF EXISTS r_deps;
-    CREATE TABLE r_deps (
-      id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      root        INTEGER NOT NULL REFERENCES pom(id),
+    CREATE TABLE IF NOT EXISTS r_deps (
+      pom         INTEGER NOT NULL REFERENCES pom(id),
       group_id    TEXT NOT NULL,
       artefact_id TEXT NOT NULL,
       version     TEXT NOT NULL,

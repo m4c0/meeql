@@ -104,4 +104,18 @@ void meeql::eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute
         AND id = e_id
     )");
   } while (db.changes() > 0);
+
+  // Apply "imports"
+  stmt = db.prepare(R"(
+    DELETE FROM eff_dep AS ed
+    WHERE scope = 'import' AND type = 'pom'
+    RETURNING group_id, artefact_id, version, depth
+  )");
+  while (stmt.step()) {
+    eff(db, 
+        v(stmt.column_text(0)),
+        v(stmt.column_text(1)),
+        v(stmt.column_text(2)),
+        stmt.column_int(3));
+  }
 }
