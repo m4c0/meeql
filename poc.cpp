@@ -33,8 +33,8 @@ static void work(jute::view grp, jute::view art, jute::view ver, jute::view scop
   silog::trace(5);
 
   stmt = db.prepare(R"(
-    INSERT OR IGNORE INTO r_deps (group_id, artefact_id, version)
-    SELECT d.group_id, d.artefact_id
+    INSERT OR IGNORE INTO r_deps (root, group_id, artefact_id, version)
+    SELECT d.root, d.group_id, d.artefact_id
          , COALESCE(d.version, dm.version)
     FROM eff_dep AS d
     LEFT JOIN eff_dep AS dm
@@ -64,6 +64,7 @@ int main(int argc, char ** argv) {
     DROP TABLE IF EXISTS r_deps;
     CREATE TABLE r_deps (
       id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      root        INTEGER NOT NULL REFERENCES pom(id),
       group_id    TEXT NOT NULL,
       artefact_id TEXT NOT NULL,
       version     TEXT NOT NULL,
