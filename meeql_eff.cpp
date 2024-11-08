@@ -113,9 +113,9 @@ void meeql::eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute
   )");
   while (stmt.step()) {
     eff(db, 
-        v(stmt.column_text(0)),
-        v(stmt.column_text(1)),
-        v(stmt.column_text(2)),
+        stmt.column_view(0),
+        stmt.column_view(1),
+        stmt.column_view(2),
         stmt.column_int(3));
   }
 }
