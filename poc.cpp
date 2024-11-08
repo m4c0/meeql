@@ -6,12 +6,7 @@ import meeql;
 import print;
 import silog;
 
-static auto v(const unsigned char * n) {
-  if (!n) return jute::view {};
-  return jute::view::unsafe(reinterpret_cast<const char *>(n));
-}
-
-static void resolve(jute::view grp, jute::view art, jute::view ver, jute::view scope) {
+static auto resolve(jute::view grp, jute::view art, jute::view ver, jute::view scope) {
   auto db = meeql::db();
 
   meeql::eff(db, grp, art, ver, 0);
@@ -31,9 +26,32 @@ static void resolve(jute::view grp, jute::view art, jute::view ver, jute::view s
       AND NOT d.optional
     GROUP BY d.group_id, d.artefact_id
     HAVING d.depth = MIN(d.depth)
+    RETURNING pom
   )");
   stmt.bind(1, scope);
   stmt.step();
+  return stmt.column_int(0);
+}
+
+static bool fetch_next(int pom, jute::heap & grp, jute::heap & art, jute::heap & ver) {
+  auto db = meeql::db();
+  auto stmt = db.prepare(R"(
+    UPDATE r_deps
+    SET worked = 1
+    WHERE id IN (
+      SELECT id
+      FROM r_deps
+      WHERE pom = ? AND worked = 0
+      LIMIT 1
+    )
+    RETURNING group_id, artefact_id, version
+  )");
+  stmt.bind(1, pom);
+  if (!stmt.step()) return false;
+  grp = stmt.column_view(0);
+  art = stmt.column_view(1);
+  ver = stmt.column_view(2);
+  return true;
 }
 
 int main(int argc, char ** argv) {
@@ -53,11 +71,17 @@ int main(int argc, char ** argv) {
       group_id    TEXT NOT NULL,
       artefact_id TEXT NOT NULL,
       version     TEXT NOT NULL,
+      worked      INTEGER NOT NULL DEFAULT 0,
       UNIQUE (pom, group_id, artefact_id)
     );
   )");
 
   silog::trace(1);
-  resolve(grp, art, ver, "test");
+  auto pom = resolve(grp, art, ver, "test");
+
   silog::trace(2);
+  jute::heap group_id, artefact_id, version;
+  while (fetch_next(pom, group_id, artefact_id, version)) {
+    putln(group_id, ":", artefact_id, ":", version);
+  }
 }
