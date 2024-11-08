@@ -25,7 +25,7 @@ static void prop_fn(sqlite3_context * ctx, int argc, sqlite3_value ** argv) {
   return sqlite3_result_null(ctx);
 }
 
-void meeql::eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute::view version, int depth) {
+int meeql::eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute::view version, int depth) {
   auto flags = SQLITE_DETERMINISTIC | SQLITE_UTF8;
   sqlite3_create_function(db.handle(), "propinator", 1, flags, nullptr, prop_fn, nullptr, nullptr);
 
@@ -118,4 +118,6 @@ void meeql::eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute
         stmt.column_view(2),
         stmt.column_int(3));
   }
+
+  return pom_id;
 }

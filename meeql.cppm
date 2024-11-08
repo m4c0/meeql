@@ -15,5 +15,5 @@ namespace meeql {
     return tora::db { file.begin() };
   }
 
-  export void eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute::view version, int depth);
+  export int eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute::view version, int depth);
 }
