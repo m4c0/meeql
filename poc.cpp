@@ -9,7 +9,7 @@ import silog;
 static auto resolve(jute::view grp, jute::view art, jute::view ver, jute::view scope) {
   auto db = meeql::db();
 
-  meeql::eff(db, grp, art, ver, 0);
+  auto pom = meeql::eff(db, grp, art, ver, 0);
 
   auto stmt = db.prepare(R"(
     INSERT OR IGNORE INTO r_deps (pom, group_id, artefact_id, version)
@@ -26,11 +26,10 @@ static auto resolve(jute::view grp, jute::view art, jute::view ver, jute::view s
       AND NOT d.optional
     GROUP BY d.group_id, d.artefact_id
     HAVING d.depth = MIN(d.depth)
-    RETURNING pom
   )");
   stmt.bind(1, scope);
   stmt.step();
-  return stmt.column_int(0);
+  return pom;
 }
 
 static bool fetch_next(int pom, jute::heap & grp, jute::heap & art, jute::heap & ver) {
@@ -64,6 +63,7 @@ int main(int argc, char ** argv) {
   auto ver = jute::view::unsafe(argv[3]);
 
   meeql::db().exec("DROP TABLE IF EXISTS r_deps");
+  meeql::db().exec("DROP TABLE IF EXISTS r_deps_tree");
   meeql::db().exec(R"(
     CREATE TABLE IF NOT EXISTS r_deps (
       id          INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -74,6 +74,11 @@ int main(int argc, char ** argv) {
       worked      INTEGER NOT NULL DEFAULT 0,
       UNIQUE (pom, group_id, artefact_id)
     );
+    CREATE TABLE IF NOT EXISTS r_deps_tree (
+      parent INTEGER NOT NULL REFERENCES pom(id),
+      child  INTEGER NOT NULL REFERENCES pom(id),
+      UNIQUE (parent, child)
+    );
   )");
 
   silog::trace(1);
@@ -82,6 +87,14 @@ int main(int argc, char ** argv) {
   silog::trace(2);
   jute::heap group_id, artefact_id, version;
   while (fetch_next(pom, group_id, artefact_id, version)) {
-    putln(group_id, ":", artefact_id, ":", version);
+    auto dpom = resolve(*group_id, *artefact_id, *version, "compile");
+    if (dpom == 0) silog::die("missing dependency: %s:%s:%s", (*group_id).cstr().begin(), (*artefact_id).cstr().begin(), (*version).cstr().begin());
+
+    auto db = meeql::db();
+    auto stmt = db.prepare("INSERT OR IGNORE INTO r_deps_tree (parent, child) VALUES (?, ?)");
+    stmt.bind(1, pom);
+    stmt.bind(2, dpom);
+    stmt.step();
   }
+  silog::trace(3);
 }
