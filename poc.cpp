@@ -33,6 +33,9 @@ static auto resolve(jute::view grp, jute::view art, jute::view ver, jute::view s
 }
 
 static bool fetch_next(int pom, jute::heap & grp, jute::heap & art, jute::heap & ver) {
+  // TODO: recursive search for next
+  // with recursive from "pom", going up in r_deps_tree and using the version
+  // from the min(depth) grp by (grp, art)
   auto db = meeql::db();
   auto stmt = db.prepare(R"(
     UPDATE r_deps
