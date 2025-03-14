@@ -206,42 +206,6 @@ void update_parent_keys(tora::db & db) {
   )");
 }
 
-void setup_aux_tables(tora::db & db) {
-  silog::log(silog::info, "setting up auxiliary tables");
-  db.exec(R"(
-    CREATE TABLE f_pom_tree AS
-    WITH RECURSIVE
-      pom_chain(id, root, depth) AS (
-        SELECT id, id, 0
-        FROM pom
-        UNION ALL
-        SELECT pom.parent, pom_chain.root, pom_chain.depth + 1
-        FROM pom
-        JOIN pom_chain ON pom_chain.id = pom.id
-        WHERE pom.parent IS NOT NULL
-      )
-    SELECT * FROM pom_chain;
-
-    CREATE TABLE f_prop AS
-    SELECT t.root, prop.id, t.depth
-    FROM prop
-    JOIN f_pom_tree t ON t.id = prop.owner_pom
-    GROUP BY t.root, prop.key
-    HAVING depth = MIN(depth);
-
-    CREATE INDEX ifp_root ON f_prop (root);
-
-    CREATE TABLE f_dep AS
-    SELECT t.root, dep.id, depth
-    FROM dep
-    JOIN f_pom_tree t ON t.id = dep.owner_pom
-    GROUP BY t.root, dep.dep_mgmt, dep.group_id, dep.artefact_id
-    HAVING depth = MIN(depth);
-
-    CREATE INDEX ifd_root ON f_dep (root);
-  )");
-}
-
 void dump_stats(tora::db & db) {
   auto stmt = db.prepare("SELECT COUNT(*) FROM pom");
   stmt.step();
@@ -262,14 +226,6 @@ void dump_stats(tora::db & db) {
   stmt = db.prepare("SELECT COUNT(*) FROM excl");
   stmt.step();
   silog::trace("excls", stmt.column_int(0));
-
-  stmt = db.prepare("SELECT COUNT(*) FROM f_prop");
-  stmt.step();
-  silog::trace("eff. props", stmt.column_int(0));
-
-  stmt = db.prepare("SELECT COUNT(*) FROM f_dep");
-  stmt.step();
-  silog::trace("eff. deps", stmt.column_int(0));
 }
 
 int main(int argc, char ** argv) try {
@@ -283,7 +239,6 @@ int main(int argc, char ** argv) try {
   prepare_statements(db);
   import_local_repo(db);
   update_parent_keys(db);
-  setup_aux_tables(db);
   dump_stats(db);
 
   silog::log(silog::info, "All of that done in %dms", t.millis());
