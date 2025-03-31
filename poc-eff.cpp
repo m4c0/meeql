@@ -1,10 +1,24 @@
 #pragma leco tool
+#pragma leco add_impl "poc-eff-impl.cpp"
 
 import hai;
 import jute;
 import meeql;
 import print;
 import silog;
+import sysstd;
+import tora;
+
+static const auto home_dir = jute::view::unsafe(sysstd::env("HOME"));
+ 
+namespace meeql {
+  auto db() {
+    auto file = (home_dir + "/.m2/meeql").cstr();
+    return tora::db { file.begin() };
+  }
+
+}
+int eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute::view version, int depth);
 
 static void setup_aux_tables() {
   silog::log(silog::info, "setting up auxiliary tables");
@@ -54,7 +68,7 @@ static void setup_aux_tables() {
 static auto resolve(jute::view grp, jute::view art, jute::view ver, jute::view scope) {
   auto db = meeql::db();
 
-  auto pom = meeql::eff(db, grp, art, ver, 0);
+  auto pom = eff(db, grp, art, ver, 0);
 
   auto stmt = db.prepare(R"(
     INSERT OR IGNORE INTO r_deps (pom, group_id, artefact_id, version)

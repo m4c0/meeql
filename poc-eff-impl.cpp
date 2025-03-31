@@ -1,7 +1,7 @@
-module;
 #include "../tora/sqlite3.h"
 
-module meeql;
+import jute;
+import tora;
 import silog;
 
 static auto v(const unsigned char * n) {
@@ -25,7 +25,7 @@ static void prop_fn(sqlite3_context * ctx, int argc, sqlite3_value ** argv) {
   return sqlite3_result_null(ctx);
 }
 
-int meeql::eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute::view version, int depth) {
+int eff(tora::db & db, jute::view group_id, jute::view artefact_id, jute::view version, int depth) {
   auto flags = SQLITE_DETERMINISTIC | SQLITE_UTF8;
   sqlite3_create_function(db.handle(), "propinator", 1, flags, nullptr, prop_fn, nullptr, nullptr);
 
