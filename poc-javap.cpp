@@ -1,20 +1,15 @@
 #pragma leco tool
 
 import jute;
-import mtime;
-import pprent;
+import meeql;
 import silog;
-import sysstd;
 import tora;
-
-static const auto home_dir = jute::view::unsafe(sysstd::env("HOME"));
-static const auto repo_dir = (home_dir + "/.m2/repository").cstr();
 
 static void setup_schema(tora::db & db) {
   db.exec(R"(
     CREATE TABLE jar (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      name  TEXT NOT NULL,
+      name  TEXT NOT NULL
     ) STRICT;
 
     CREATE TABLE class (
@@ -25,25 +20,27 @@ static void setup_schema(tora::db & db) {
   )");
 }
 
-static void process_dep(jute::view path) {
+auto curry(auto fn, auto param) {
+  return [=](auto ... args) {
+    return fn(param, args...);
+  };
 }
 
-static void recurse(jute::view path) {
-  auto full_path = (repo_dir + path).cstr();
-  auto marker = repo_dir + path + "/_remote.repositories";
-  if (mtime::of(marker.cstr().begin())) {
-    process_dep(path);
-    return;
-  }
-  for (auto f : pprent::list(full_path.begin())) {
-    if (f[0] == '.') continue;
-    auto dir = (path + "/" + jute::view::unsafe(f)).cstr();
-    recurse(dir);
-  }
+static void add_jar(tora::stmt * stmt, jute::view pom_path) {
+  auto jar_path = jute::heap { pom_path.rsplit('.').before } + ".jar";
+  stmt->reset();
+  stmt->bind(1, *jar_path);
+  stmt->step();
+  silog::trace(jar_path);
 }
+
 static void import_local_repo(tora::db & db) {
   silog::log(silog::info, "parsing and importing local repo");
-  recurse("");
+  auto stmt = db.prepare(R"(
+    INSERT INTO jar (name)
+    VALUES (?)
+  )");
+  meeql::recurse_repo_dir(curry(add_jar, &stmt));
 }
 
 int main() {
@@ -51,4 +48,6 @@ int main() {
 
   setup_schema(db);
   import_local_repo(db);
+
+  silog::log(silog::info, "done");
 }
