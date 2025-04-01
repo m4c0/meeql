@@ -11,7 +11,8 @@ static void setup_schema(tora::db & db) {
   db.exec(R"(
     CREATE TABLE jar (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      name  TEXT NOT NULL
+      name  TEXT NOT NULL UNIQUE,
+      file  TEXT NOT NULL
     ) STRICT;
 
     CREATE TABLE class (
@@ -29,21 +30,27 @@ auto curry(auto fn, auto param) {
 }
 
 static void add_jar(tora::stmt * stmt, jute::view pom_path) {
+  auto name = pom_path.rsplit('/').after.rsplit('-').before;
   auto jar_path = jute::heap { pom_path.rsplit('.').before } + ".jar";
   if (!mtime::of((*jar_path).cstr().begin())) return;
 
   stmt->reset();
-  stmt->bind(1, *jar_path);
+  stmt->bind(1, name);
+  stmt->bind(2, *jar_path);
   stmt->step();
 }
 
 static void import_local_repo(tora::db & db) {
-  silog::log(silog::info, "parsing and importing local repo");
+  silog::log(silog::info, "indexing jar files");
   auto stmt = db.prepare(R"(
-    INSERT INTO jar (name)
-    VALUES (?)
+    INSERT OR IGNORE INTO jar (name, file)
+    VALUES (?, ?)
   )");
   meeql::recurse_repo_dir(curry(add_jar, &stmt));
+
+  stmt = db.prepare("SELECT COUNT(*) FROM jar");
+  stmt.step();
+  silog::log(silog::info, "imported %d jar files", stmt.column_int(0));
 }
 
 static auto d(jute::view str) { return str.cstr(); }
@@ -56,11 +63,12 @@ static void import_classes(tora::db & db) {
     VALUES (?, ?)
   )");
 
-  auto stmt = db.prepare("SELECT id, name FROM jar");
+  auto stmt = db.prepare("SELECT id, file FROM jar ORDER BY file");
   while (stmt.step()) {
     auto id   = stmt.column_int(0);
     auto name = stmt.column_view(1).cstr();
 
+    unsigned count {};
     auto unzip = d("unzip");
     auto qq    = d("-qq");
     auto l     = d("-l");
@@ -73,6 +81,19 @@ static void import_classes(tora::db & db) {
       i_stmt.bind(1, name);
       i_stmt.bind(2, id);
       i_stmt.step();
+      count++;
+    }
+    while (p.gets_err()) {
+      silog::log(silog::error, "%s", p.last_line_read());
+    }
+    switch (p.wait()) {
+      case 0:
+      case 11: // "no class found"
+        silog::log(silog::info, "found %d classes in [%s]", count, name.begin());
+        break;
+      default:
+        silog::log(silog::error, "Failed to unzip [%s]", name.begin());
+        throw 0;
     }
   }
 }
