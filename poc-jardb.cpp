@@ -54,6 +54,13 @@ static auto init() {
   return db;
 }
 
+static void cmd_search(tora::db & db, jute::view param) {
+  if (param == "") die("missing search parameter");
+  auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH ? || '*'");
+  stmt.bind(1, param);
+  while (stmt.step()) putln(stmt.column_view(0));
+}
+
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
@@ -62,12 +69,8 @@ int main(int argc, char ** argv) try {
   auto cmd = shift();
   auto param = shift();
   if (cmd == "") die("missing command");
-  else if (cmd == "search") {
-    if (param == "") die("missing search parameter");
-    auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH ? || '*'");
-    stmt.bind(1, param);
-    while (stmt.step()) putln(stmt.column_view(0));
-  } else die("Unknown command: ", cmd);
+  else if (cmd == "search") cmd_search(db, param);
+  else die("Unknown command: ", cmd);
 } catch (...) {
   return 1;
 }
