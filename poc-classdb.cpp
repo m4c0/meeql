@@ -15,7 +15,7 @@ static auto curry(auto fn, auto param) {
 static auto d(jute::view str) { return str.cstr(); }
 
 static void unjar(tora::stmt * stmt, jute::view pom_path) {
-  auto name = pom_path.rsplit('/').after.rsplit('.').before;
+  auto art_name = pom_path.rsplit('/').after.rsplit('.').before;
   auto jar_path = (pom_path.rsplit('.').before + ".jar").cstr();
   if (!mtime::of(jar_path.begin())) return;
 
@@ -26,8 +26,17 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
   char * args[] { unzip.begin(), qq.begin(), l.begin(), jar_path.begin(), cls.begin(), 0 };
   p::proc p { args };
   while (p.gets()) {
-    stmt->bind(1, name);
-    stmt->bind(2, jute::view::unsafe(p.last_line_read()));
+    auto fqn = jute::view::unsafe(p.last_line_read())
+      .rsplit(' ').after
+      .rsplit('\n').before;
+
+    auto cls = fqn
+      .rsplit('/').after
+      .rsplit('.').before;
+
+    stmt->bind(1, art_name);
+    stmt->bind(2, fqn);
+    stmt->bind(3, cls);
     stmt->step();
     stmt->reset();
   }
@@ -36,14 +45,17 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
 static void load(tora::db & db) {
   db.exec(R"(
     DROP TABLE IF EXISTS class;
+    DROP TABLE IF EXISTS class_sfx;
+
     CREATE TABLE class (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
       jar   TEXT NOT NULL,
+      fqn   TEXT NOT NULL,
       name  TEXT NOT NULL
     ) STRICT;
   )");
   db.exec("BEGIN TRANSACTION");
-  auto stmt = db.prepare("INSERT INTO class (jar, name) VALUES (?, ?)");
+  auto stmt = db.prepare("INSERT INTO class (jar, fqn, name) VALUES (?, ?, ?)");
   meeql::recurse_repo_dir(curry(unjar, &stmt));
   db.exec("END TRANSACTION");
 
@@ -52,7 +64,6 @@ static void load(tora::db & db) {
   putln("got ", stmt.column_int(0), " classes");
 
   db.exec(R"(
-    DROP TABLE IF EXISTS class_sfx;
     CREATE VIRTUAL TABLE class_sfx USING spellfix1;
     INSERT INTO class_sfx(word) SELECT name FROM class;
   )");
