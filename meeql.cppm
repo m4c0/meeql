@@ -1,9 +1,13 @@
+#pragma leco add_impl spellfix
 export module meeql;
 import jute;
 import hai;
 import mtime;
 import pprent;
 import sysstd;
+import tora;
+
+extern "C" int sqlite3_spellfix_init(void * db, char ** err, const void * api);
 
 namespace meeql {
   export inline jute::heap home_dir() { return jute::view::unsafe(sysstd::env("HOME")); }
@@ -30,4 +34,11 @@ namespace meeql {
     }
   }
   export void recurse_repo_dir(hai::fn<void, jute::view> fn) { recurse("", fn); }
+
+  struct spellfix_error { const char * msg; };
+  export void spellfix_init(tora::db & db) {
+    char * err {};
+    sqlite3_spellfix_init(db.handle(), &err, nullptr);
+    if (err) throw spellfix_error { err };
+  }
 }

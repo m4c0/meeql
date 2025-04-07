@@ -1,12 +1,9 @@
 #pragma leco tool
-#pragma leco add_impl spellfix
 import jute;
 import meeql;
 import mtime;
 import print;
 import tora;
-
-extern "C" int sqlite3_spellfix_init(void * db, char ** err, const void * api);
 
 static auto curry(auto fn, auto param) {
   return [=](auto ... args) {
@@ -27,10 +24,7 @@ static void add_jar(tora::stmt * stmt, jute::view pom_path) {
 
 static auto init() {
   tora::db db { ":memory:" };
-
-  char * err {};
-  sqlite3_spellfix_init(db.handle(), &err, nullptr);
-  if (err) die("Error initing spellfix: %s", err);
+  meeql::spellfix_init(db);
 
   db.exec(R"(
     CREATE TABLE jar (
