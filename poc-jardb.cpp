@@ -34,10 +34,9 @@ static auto init() {
 
   db.exec(R"(
     CREATE TABLE jar (
-      id        INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      index_ts  INTEGER NOT NULL DEFAULT -1,
-      path      TEXT NOT NULL UNIQUE,
-      name      TEXT NOT NULL
+      id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      path  TEXT NOT NULL UNIQUE,
+      name  TEXT NOT NULL
     ) STRICT;
   )");
   auto stmt = db.prepare(R"(
