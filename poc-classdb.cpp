@@ -33,10 +33,9 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
   }
 }
 
-int main() try {
-  tora::db db { "out/classdb.sqlite" };
-
+static void load(tora::db & db) {
   db.exec(R"(
+    DROP TABLE IF EXISTS class;
     CREATE TABLE class (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
       jar   TEXT NOT NULL,
@@ -50,7 +49,28 @@ int main() try {
 
   stmt = db.prepare("SELECT COUNT(*) FROM class");
   stmt.step();
-  putln("got ", stmt.column_int(0));
+  putln("got ", stmt.column_int(0), " classes");
+
+  db.exec(R"(
+    DROP TABLE IF EXISTS class_sfx;
+    CREATE VIRTUAL TABLE class_sfx USING spellfix1;
+    INSERT INTO class_sfx(word) SELECT name FROM class;
+  )");
+  putln("indexing done");
+}
+
+int main(int argc, char ** argv) try {
+  const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
+
+  tora::db db { "out/classdb.sqlite" };
+  meeql::spellfix_init(db);
+
+  auto cmd = shift();
+  if (cmd == "load") return (load(db), 0);
+
+  auto stmt = db.prepare("SELECT word FROM class_sfx WHERE word MATCH ? || '*'");
+  stmt.bind(1, "Completable");
+  while (stmt.step()) putln(stmt.column_view(0));
 } catch (...) {
   return 1;
 }
