@@ -14,6 +14,19 @@ static auto curry(auto fn, auto param) {
 
 static auto d(jute::view str) { return str.cstr(); }
 
+static constexpr bool is_lambda(jute::view cls) {
+  auto [a, b] = cls.rsplit('$');
+  if (a == "") return false;
+  if (b == "") return true; // No idea if this case exists
+  for (auto c : b) if (c < '0' || c > '9') return false;
+  return true;
+}
+static_assert(!is_lambda("Abc"));
+static_assert(!is_lambda("Abc$Def"));
+static_assert(!is_lambda("Abc$Def123"));
+static_assert(is_lambda("Abc$123"));
+static_assert(is_lambda("Abc$1"));
+
 static void unjar(tora::stmt * stmt, jute::view pom_path) {
   auto art_name = pom_path.rsplit('/').after.rsplit('.').before;
   auto jar_path = (pom_path.rsplit('.').before + ".jar").cstr();
@@ -33,6 +46,7 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
     auto cls = fqn
       .rsplit('/').after
       .rsplit('.').before;
+    if (is_lambda(cls)) continue;
 
     stmt->bind(1, art_name);
     stmt->bind(2, fqn);
