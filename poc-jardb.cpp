@@ -53,6 +53,24 @@ static auto init() {
   return db;
 }
 
+static void cmd_mvndep(tora::db & db, jute::view param) {
+  if (param == "") die("missing mvn dep parameter");
+  auto stmt = db.prepare("SELECT path FROM jar WHERE name = ?");
+  stmt.bind(1, param);
+  if (!stmt.step()) die("dependency not found: ", param);
+
+  auto [ver_r, ver] = stmt.column_view(0).rsplit('/').before.rsplit('/');
+  auto [path, art] = ver_r.rsplit('/');
+  auto grp = path.subview(meeql::repo_dir().size() + 1).after.cstr();
+  for (auto & c : grp) if (c == '/') c = '.';
+
+  putln("    <dependency>");
+  putln("      <groupId>", grp, "</groupId>");
+  putln("      <artifactId>", art, "</artifactId>");
+  putln("      <version>", ver, "</version>");
+  putln("    </dependency>");
+}
+
 static void cmd_search(tora::db & db, jute::view param) {
   if (param == "") die("missing search parameter");
   auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH ? || '*'");
@@ -68,6 +86,7 @@ int main(int argc, char ** argv) try {
   auto cmd = shift();
   auto param = shift();
   if (cmd == "") die("missing command");
+  else if (cmd == "mvndep") cmd_mvndep(db, param);
   else if (cmd == "search") cmd_search(db, param);
   else die("Unknown command: ", cmd);
 } catch (...) {
