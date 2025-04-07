@@ -25,7 +25,7 @@ static void add_jar(tora::stmt * stmt, jute::view pom_path) {
   stmt->step();
 }
 
-int main() {
+static auto init() {
   tora::db db { ":memory:" };
 
   char * err {};
@@ -40,22 +40,24 @@ int main() {
       name      TEXT NOT NULL
     ) STRICT;
   )");
-
   auto stmt = db.prepare(R"(
     INSERT OR IGNORE INTO jar (path, name)
     VALUES (?, ?)
   )");
   meeql::recurse_repo_dir(curry(add_jar, &stmt));
 
-  stmt = db.prepare("SELECT COUNT(*) FROM jar");
-  stmt.step();
-  putfn("imported %d jar files", stmt.column_int(0));
-
   db.exec(R"(
     CREATE VIRTUAL TABLE jar_sfx USING spellfix1;
     INSERT INTO jar_sfx(word) SELECT name FROM jar;
   )");
-  stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH 'Program*'");
+
+  return db;
+}
+
+int main(int argc, char ** argv) {
+  auto db = init();
+
+  auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH 'Program*'");
   while (stmt.step()) {
     putln(stmt.column_view(0));
   }
