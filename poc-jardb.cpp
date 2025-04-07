@@ -54,11 +54,16 @@ static auto init() {
   return db;
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char ** argv) try {
+  const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
+
   auto db = init();
 
-  auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH 'Program*'");
-  while (stmt.step()) {
-    putln(stmt.column_view(0));
-  }
+  auto cmd = shift();
+  if (cmd == "") {
+    auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH 'Program*'");
+    while (stmt.step()) putln(stmt.column_view(0));
+  } else die("Unknown command: ", cmd);
+} catch (...) {
+  return 1;
 }
