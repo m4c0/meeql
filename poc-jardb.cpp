@@ -60,8 +60,12 @@ int main(int argc, char ** argv) try {
   auto db = init();
 
   auto cmd = shift();
-  if (cmd == "") {
-    auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH 'Program*'");
+  auto param = shift();
+  if (cmd == "") die("missing command");
+  else if (cmd == "search") {
+    if (param == "") die("missing search parameter");
+    auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH ? || '*'");
+    stmt.bind(1, param);
     while (stmt.step()) putln(stmt.column_view(0));
   } else die("Unknown command: ", cmd);
 } catch (...) {
