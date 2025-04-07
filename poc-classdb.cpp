@@ -41,16 +41,12 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
   while (p.gets()) {
     auto fqn = jute::view::unsafe(p.last_line_read())
       .rsplit(' ').after
-      .rsplit('\n').before;
-
-    auto cls = fqn
-      .rsplit('/').after
       .rsplit('.').before;
-    if (is_lambda(cls)) continue;
+
+    if (is_lambda(fqn)) continue;
 
     stmt->bind(1, art_name);
     stmt->bind(2, fqn);
-    stmt->bind(3, cls);
     stmt->step();
     stmt->reset();
   }
@@ -59,17 +55,16 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
 static void load(tora::db & db) {
   db.exec(R"(
     DROP TABLE IF EXISTS class;
-    DROP TABLE IF EXISTS class_sfx;
+    DROP TABLE IF EXISTS class_fts;
 
     CREATE TABLE class (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
       jar   TEXT NOT NULL,
-      fqn   TEXT NOT NULL,
-      name  TEXT NOT NULL
+      fqn   TEXT NOT NULL
     ) STRICT;
   )");
   db.exec("BEGIN TRANSACTION");
-  auto stmt = db.prepare("INSERT INTO class (jar, fqn, name) VALUES (?, ?, ?)");
+  auto stmt = db.prepare("INSERT INTO class (jar, fqn) VALUES (?, ?)");
   meeql::recurse_repo_dir(curry(unjar, &stmt));
   db.exec("END TRANSACTION");
 
@@ -78,8 +73,8 @@ static void load(tora::db & db) {
   putln("got ", stmt.column_int(0), " classes");
 
   db.exec(R"(
-    CREATE VIRTUAL TABLE class_sfx USING spellfix1;
-    INSERT INTO class_sfx(word) SELECT name FROM class;
+    CREATE VIRTUAL TABLE class_fts USING fts5 (fqn);
+    INSERT INTO class_fts SELECT DISTINCT(fqn) FROM class;
   )");
   putln("indexing done");
 }
@@ -93,8 +88,8 @@ int main(int argc, char ** argv) try {
   auto cmd = shift();
   if (cmd == "load") return (load(db), 0);
 
-  auto stmt = db.prepare("SELECT word FROM class_sfx WHERE word MATCH ? || '*'");
-  stmt.bind(1, "Completable");
+  auto stmt = db.prepare("SELECT * FROM class_fts WHERE fqn MATCH ?");
+  stmt.bind(1, "CompletableF*");
   while (stmt.step()) putln(stmt.column_view(0));
 } catch (...) {
   return 1;
