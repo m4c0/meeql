@@ -19,7 +19,6 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
   auto jar_path = (pom_path.rsplit('.').before + ".jar").cstr();
   if (!mtime::of(jar_path.begin())) return;
 
-  unsigned count {};
   auto unzip = d("unzip");
   auto qq    = d("-qq");
   auto l     = d("-l");
@@ -27,17 +26,15 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
   char * args[] { unzip.begin(), qq.begin(), l.begin(), jar_path.begin(), cls.begin(), 0 };
   p::proc p { args };
   while (p.gets()) {
-    stmt->bind(1, jar_path);
+    stmt->bind(1, name);
     stmt->bind(2, jute::view::unsafe(p.last_line_read()));
     stmt->step();
     stmt->reset();
-    count++;
   }
-  putln(name, " ", count);
 }
 
 int main() try {
-  tora::db db { ":memory:" };
+  tora::db db { "out/classdb.sqlite" };
 
   db.exec(R"(
     CREATE TABLE class (
@@ -46,8 +43,14 @@ int main() try {
       name  TEXT NOT NULL
     ) STRICT;
   )");
+  db.exec("BEGIN TRANSACTION");
   auto stmt = db.prepare("INSERT INTO class (jar, name) VALUES (?, ?)");
   meeql::recurse_repo_dir(curry(unjar, &stmt));
+  db.exec("END TRANSACTION");
+
+  stmt = db.prepare("SELECT COUNT(*) FROM class");
+  stmt.step();
+  putln("got ", stmt.column_int(0));
 } catch (...) {
   return 1;
 }
