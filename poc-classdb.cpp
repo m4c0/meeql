@@ -79,6 +79,13 @@ static void load(tora::db & db) {
   putln("indexing done");
 }
 
+static void search(tora::db & db, jute::view term) {
+  if (term == "") die("missing search term");
+  auto stmt = db.prepare("SELECT * FROM class_fts WHERE fqn MATCH ? ORDER BY rank");
+  stmt.bind(1, term);
+  while (stmt.step()) putln(stmt.column_view(0));
+}
+
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
@@ -86,11 +93,11 @@ int main(int argc, char ** argv) try {
   meeql::spellfix_init(db);
 
   auto cmd = shift();
-  if (cmd == "load") return (load(db), 0);
-
-  auto stmt = db.prepare("SELECT * FROM class_fts WHERE fqn MATCH ?");
-  stmt.bind(1, "CompletableF*");
-  while (stmt.step()) putln(stmt.column_view(0));
+  auto param = shift();
+  if (cmd == "") die("missing command");
+  else if (cmd == "load") load(db);
+  else if (cmd == "search") search(db, param);
+  else die("Unknown command: ", cmd);
 } catch (...) {
   return 1;
 }
