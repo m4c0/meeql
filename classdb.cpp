@@ -93,7 +93,8 @@ static void search(tora::db & db, jute::view term) {
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
-  tora::db db { "out/classdb.sqlite" };
+  auto file = meeql::repo_dir() + "/../meeql-classdb.sqlite\0";
+  tora::db db { file.begin() };
   meeql::spellfix_init(db);
 
   auto cmd = shift();
