@@ -3,13 +3,20 @@ vim9script
 def Test(findstart: number, base: string): any
   if findstart == 1
     const b = substitute(getline('.')[: col(".")], "'", "\\'", "g")
-    echom b
-    return system('out/arm64-apple-macosx15/omni.exe 1 "' .. b .. '"')
+    if b !~ '^# import '
+      return -2
+    endif
+
+    return len("# import")
   endif
 
-  return systemlist('out/arm64-apple-macosx15/omni.exe 0 "' .. base .. '"')
+  var list = systemlist('out/arm64-apple-macosx15/classdb.exe search "' .. base .. '"')
+  map(list, (k, v) => substitute(v, "[/$]", ".", "g"))
+  return list
 enddef
 
 set omnifunc=Test
 
 # just try omni here
+#
+# import test
