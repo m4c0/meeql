@@ -81,7 +81,11 @@ static void load(tora::db & db) {
 
 static void search(tora::db & db, jute::view term) {
   if (term == "") die("missing search term");
-  auto stmt = db.prepare("SELECT * FROM class_fts WHERE fqn MATCH ? ORDER BY rank");
+  auto stmt = db.prepare(R"(
+    SELECT * FROM class_fts
+    WHERE fqn MATCH ? || '*'
+    ORDER BY rank
+  )");
   stmt.bind(1, term);
   while (stmt.step()) putln(stmt.column_view(0));
 }
