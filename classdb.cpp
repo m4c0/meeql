@@ -1,6 +1,4 @@
 #pragma leco tool
-#include <stdlib.h>
-
 import jute;
 import meeql;
 import mtime;
@@ -131,11 +129,7 @@ static void javap(tora::db & db, jute::view term) {
   stmt.bind(1, term);
   if (!stmt.step()) die("class or jar not found");
   auto jar = stmt.column_view(0);
-
-  //    jar:file:///path/to/MyJar.jar!/mypkg/MyClass.class
-
-  auto cmd = ("javap jar:file://" + jar + "!/" + term + ".class").cstr();
-  system(cmd.begin());
+  putln("jar:file://", jar, "!/", term, ".class");
 }
 
 int main(int argc, char ** argv) try {
