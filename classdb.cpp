@@ -112,6 +112,7 @@ static void search(tora::db & db, jute::view term) {
     SELECT * FROM class_fts
     WHERE fqn MATCH ? || '*'
     ORDER BY rank
+    LIMIT 1000
   )");
   stmt.bind(1, term);
   while (stmt.step()) putln(stmt.column_view(0));
