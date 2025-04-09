@@ -1,4 +1,6 @@
 #pragma leco tool
+#include <stdlib.h>
+
 import jute;
 import meeql;
 import mtime;
@@ -52,10 +54,28 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
   }
 }
 
+static void add_jar(tora::stmt * stmt, jute::view pom_path) {
+  auto name = pom_path.rsplit('/').after.rsplit('.').before;
+  auto jar_path = jute::heap { pom_path.rsplit('.').before } + ".jar";
+  if (!mtime::of((*jar_path).cstr().begin())) return;
+
+  stmt->reset();
+  stmt->bind(1, *jar_path);
+  stmt->bind(2, name);
+  stmt->step();
+}
+
 static void load(tora::db & db) {
   db.exec(R"(
     DROP TABLE IF EXISTS class;
     DROP TABLE IF EXISTS class_fts;
+    DROP TABLE IF EXISTS jar;
+
+    CREATE TABLE jar (
+      id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      path  TEXT NOT NULL UNIQUE,
+      name  TEXT NOT NULL
+    ) STRICT;
 
     CREATE TABLE class (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -63,8 +83,17 @@ static void load(tora::db & db) {
       fqn   TEXT NOT NULL
     ) STRICT;
   )");
+
   db.exec("BEGIN TRANSACTION");
-  auto stmt = db.prepare("INSERT INTO class (jar, fqn) VALUES (?, ?)");
+  auto stmt = db.prepare(R"(
+    INSERT OR IGNORE INTO jar (path, name)
+    VALUES (?, ?)
+  )");
+  meeql::recurse_repo_dir(curry(add_jar, &stmt));
+  db.exec("END TRANSACTION");
+
+  db.exec("BEGIN TRANSACTION");
+  stmt = db.prepare("INSERT INTO class (jar, fqn) VALUES (?, ?)");
   meeql::recurse_repo_dir(curry(unjar, &stmt));
   db.exec("END TRANSACTION");
 
@@ -90,6 +119,25 @@ static void search(tora::db & db, jute::view term) {
   while (stmt.step()) putln(stmt.column_view(0));
 }
 
+static void javap(tora::db & db, jute::view term) {
+  if (term == "") die("missing search term");
+
+  auto stmt = db.prepare(R"(
+    SELECT j.path
+    FROM class AS c
+    JOIN jar AS j ON j.name = c.jar
+    WHERE c.fqn = ?
+  )");
+  stmt.bind(1, term);
+  if (!stmt.step()) die("class or jar not found");
+  auto jar = stmt.column_view(0);
+
+  //    jar:file:///path/to/MyJar.jar!/mypkg/MyClass.class
+
+  auto cmd = ("javap jar:file://" + jar + "!/" + term + ".class").cstr();
+  system(cmd.begin());
+}
+
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
@@ -100,6 +148,7 @@ int main(int argc, char ** argv) try {
   auto cmd = shift();
   auto param = shift();
   if (cmd == "") die("missing command");
+  else if (cmd == "javap") javap(db, param);
   else if (cmd == "load") load(db);
   else if (cmd == "search") search(db, param);
   else die("Unknown command: ", cmd);
