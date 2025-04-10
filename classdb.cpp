@@ -145,7 +145,7 @@ static void javap(tora::db & db, jute::view term) {
     WHERE c.fqn = ?
   )");
   stmt.bind(1, term);
-  if (!stmt.step()) die("class or jar not found");
+  if (!stmt.step()) die("class or jar not found: [", term, "]");
   auto jar = stmt.column_view(0);
   putln("jar:file://", jar, "!/", term, ".class");
 }
