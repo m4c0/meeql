@@ -6,6 +6,23 @@ import popen;
 import print;
 import tora;
 
+static void help() {
+  put(R"(
+Available commands (in alphabetical order):
+  * javap <fqn>    - Outputs a URI in a format that can be passed to javap
+  * help           - This command, list all commands
+  * load           - Recreates the database from the ~/.m2/repository folder
+  * search <term>  - Searches the class table for <term>. Outputs <fqn> for
+                     the first 1000 results.
+Where:
+  * fqn   - fully-qualified class name in forward-slash notation.
+            Example: com/mycompany/Test$Inner
+  * term  - any search term compatible with Sqlite's FTS5 notation.
+            When in doubt, use words separated with space.
+            Example: com mycompany Test Inner
+)");
+}
+
 static auto curry(auto fn, auto param) {
   return [=](auto ... args) {
     return fn(param, args...);
@@ -142,9 +159,10 @@ int main(int argc, char ** argv) try {
 
   auto cmd = shift();
   auto param = shift();
-  if (cmd == "") die("missing command");
-  else if (cmd == "javap") javap(db, param);
-  else if (cmd == "load") load(db);
+       if (cmd == "")       help();
+  else if (cmd == "javap")  javap(db, param);
+  else if (cmd == "help")   help();
+  else if (cmd == "load")   load(db);
   else if (cmd == "search") search(db, param);
   else die("Unknown command: ", cmd);
 } catch (...) {
