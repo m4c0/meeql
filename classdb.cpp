@@ -13,12 +13,16 @@ Available commands (in alphabetical order):
   * jar <fqn>      - Finds a jar file for a given class
   * javap <fqn>    - Outputs a URI in a format that can be passed to javap
   * help           - This command, list all commands
+  * imports <java> - Lists JAR files found for each of a Java source file
+                     import
   * load           - Recreates the database from the ~/.m2/repository folder
   * search <term>  - Searches the class table for <term>. Outputs <fqn> for
                      the first 1000 results.
 Where:
   * fqn   - fully-qualified class name in forward-slash notation.
             Example: com/mycompany/Test$Inner
+  * java  - any Java source file.
+            Example: src/main/java/com/mycompany/Test.java
   * term  - any search term compatible with Sqlite's FTS5 notation.
             When in doubt, use words separated with space.
             Example: com mycompany Test Inner
