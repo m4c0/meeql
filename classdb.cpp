@@ -172,6 +172,14 @@ static void javap(tora::db & db, jute::view term) {
 
 static void imports(tora::db & db, jute::view term) {
   if (term == "") die("missing file name");
+
+  db.exec(R"(
+    CREATE TEMPORARY TABLE search (
+      fqn TEXT NOT NULL
+    ) STRICT;
+  )");
+  auto stmt = db.prepare("INSERT INTO search VALUES (?)");
+
   jojo::readlines(term, [&](auto line) {
     auto [l, r] = line.split(' ');
     if (l != "import") return;
@@ -197,8 +205,18 @@ static void imports(tora::db & db, jute::view term) {
         break;
       }
     }
-    jar(db, jute::view::unsafe(cls_s.begin()));
+    stmt.bind(1, jute::view::unsafe(cls_s.begin()));
+    stmt.step();
+    stmt.reset();
   });
+
+  stmt = db.prepare(R"(
+    SELECT DISTINCT j.path
+    FROM class AS c
+    JOIN jar AS j ON j.name = c.jar
+    JOIN search AS s ON s.fqn = c.fqn
+  )");
+  while (stmt.step()) putln(stmt.column_view(0));
 }
 
 int main(int argc, char ** argv) try {
