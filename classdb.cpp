@@ -215,6 +215,8 @@ static void imports(tora::db & db, jute::view term) {
     FROM class AS c
     JOIN jar AS j ON j.name = c.jar
     JOIN search AS s ON s.fqn = c.fqn
+    GROUP BY s.fqn
+    HAVING j.id = MAX(j.id)
   )");
   while (stmt.step()) putln(stmt.column_view(0));
 }
