@@ -1,4 +1,5 @@
 #pragma leco tool
+import jojo;
 import jute;
 import meeql;
 import mtime;
@@ -165,6 +166,37 @@ static void javap(tora::db & db, jute::view term) {
   putln("jar:file://", jar, "!/", term, ".class");
 }
 
+static void imports(tora::db & db, jute::view term) {
+  if (term == "") die("missing file name");
+  jojo::readlines(term, [&](auto line) {
+    auto [l, r] = line.split(' ');
+    if (l != "import") return;
+  
+    auto [l1, r1] = r.split(' ');
+    auto stc = l1 == "static";
+    auto cls = stc ? r1 : r;
+    cls = cls.rsplit(';').before;
+
+    if (cls.starts_with("java")) return;
+  
+    auto cls_s = cls.cstr();
+    for (auto & c : cls_s) if (c == '.') c = '/';
+    if (stc) {
+      const auto cc = cls_s.begin();
+      for (auto i = cls_s.size() - 1; i > 0; i--) {
+        if (cc[i] != '/') continue;
+        if (cc[i + 1] >= 'A' && cc[i + 1] <= 'Z') {
+          cc[i] = '$';
+        } else {
+          cc[i] = 0;
+        }
+        break;
+      }
+    }
+    jar(db, jute::view::unsafe(cls_s.begin()));
+  });
+}
+
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
@@ -174,12 +206,13 @@ int main(int argc, char ** argv) try {
 
   auto cmd = shift();
   auto param = shift();
-       if (cmd == "")       help();
-  else if (cmd == "jar")    jar(db, param);
-  else if (cmd == "javap")  javap(db, param);
-  else if (cmd == "help")   help();
-  else if (cmd == "load")   load(db);
-  else if (cmd == "search") search(db, param);
+       if (cmd == "")         help();
+  else if (cmd == "imports")  imports(db, param);
+  else if (cmd == "jar")      jar(db, param);
+  else if (cmd == "javap")    javap(db, param);
+  else if (cmd == "help")     help();
+  else if (cmd == "load")     load(db);
+  else if (cmd == "search")   search(db, param);
   else die("Unknown command: ", cmd);
 } catch (...) {
   return 1;
