@@ -9,6 +9,7 @@ import tora;
 static void help() {
   put(R"(
 Available commands (in alphabetical order):
+  * jar <fqn>      - Finds a jar file for a given class
   * javap <fqn>    - Outputs a URI in a format that can be passed to javap
   * help           - This command, list all commands
   * load           - Recreates the database from the ~/.m2/repository folder
@@ -135,6 +136,20 @@ static void search(tora::db & db, jute::view term) {
   while (stmt.step()) putln(stmt.column_view(0));
 }
 
+static void jar(tora::db & db, jute::view term) {
+  if (term == "") die("missing search term");
+
+  auto stmt = db.prepare(R"(
+    SELECT j.path
+    FROM class AS c
+    JOIN jar AS j ON j.name = c.jar
+    WHERE c.fqn = ?
+  )");
+  stmt.bind(1, term);
+  if (!stmt.step()) die("class or jar not found: [", term, "]");
+  putln(stmt.column_view(0));
+}
+
 static void javap(tora::db & db, jute::view term) {
   if (term == "") die("missing search term");
 
@@ -160,6 +175,7 @@ int main(int argc, char ** argv) try {
   auto cmd = shift();
   auto param = shift();
        if (cmd == "")       help();
+  else if (cmd == "jar")    jar(db, param);
   else if (cmd == "javap")  javap(db, param);
   else if (cmd == "help")   help();
   else if (cmd == "load")   load(db);
