@@ -41,10 +41,7 @@ static void load_pom(load_stuff * ls, jute::view pom_path) {
   ls->ver_stmt.bind(2, ver);
   ls->ver_stmt.bind(3, pom_path);
   ls->ver_stmt.step();
-  auto vid = ls->ver_stmt.column_int(0);
   ls->ver_stmt.reset();
-
-  putln(gid, " ", aid, " ", vid, " ", grp, " ", art, " ", ver);
 }
 
 int main(int argc, char ** argv) try {
@@ -87,10 +84,7 @@ int main(int argc, char ** argv) try {
       RETURNING id
     )"),
     .ver_stmt = db.prepare(R"(
-      INSERT INTO ver (art, name, pom) VALUES (?, ?, ?) 
-      ON CONFLICT DO
-      UPDATE SET id = id
-      RETURNING id
+      INSERT OR IGNORE INTO ver (art, name, pom) VALUES (?, ?, ?) 
     )"),
   };
   meeql::recurse_repo_dir(curry(load_pom, &ls));
