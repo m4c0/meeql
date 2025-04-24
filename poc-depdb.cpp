@@ -13,6 +13,8 @@ static auto curry(auto fn, auto param) {
 struct load_stuff {
   tora::db * db;
   tora::stmt grp_stmt;
+  tora::stmt art_stmt;
+  tora::stmt ver_stmt;
 };
 
 static void load_pom(load_stuff * ls, jute::view pom_path) {
@@ -29,7 +31,20 @@ static void load_pom(load_stuff * ls, jute::view pom_path) {
   auto gid = ls->grp_stmt.column_int(0);
   ls->grp_stmt.reset();
 
-  putln(gid, grp, " ", art, " ", ver);
+  ls->art_stmt.bind(1, gid);
+  ls->art_stmt.bind(2, art);
+  ls->art_stmt.step();
+  auto aid = ls->art_stmt.column_int(0);
+  ls->art_stmt.reset();
+
+  ls->ver_stmt.bind(1, aid);
+  ls->ver_stmt.bind(2, ver);
+  ls->ver_stmt.bind(3, pom_path);
+  ls->ver_stmt.step();
+  auto vid = ls->ver_stmt.column_int(0);
+  ls->ver_stmt.reset();
+
+  putln(gid, " ", aid, " ", vid, " ", grp, " ", art, " ", ver);
 }
 
 int main(int argc, char ** argv) try {
@@ -61,6 +76,18 @@ int main(int argc, char ** argv) try {
     .db = &db,
     .grp_stmt = db.prepare(R"(
       INSERT INTO grp (name) VALUES (?) 
+      ON CONFLICT DO
+      UPDATE SET id = id
+      RETURNING id
+    )"),
+    .art_stmt = db.prepare(R"(
+      INSERT INTO art (grp, name) VALUES (?, ?) 
+      ON CONFLICT DO
+      UPDATE SET id = id
+      RETURNING id
+    )"),
+    .ver_stmt = db.prepare(R"(
+      INSERT INTO ver (art, name, pom) VALUES (?, ?, ?) 
       ON CONFLICT DO
       UPDATE SET id = id
       RETURNING id
