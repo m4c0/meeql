@@ -1,4 +1,5 @@
 #pragma leco tool
+import cavan;
 import jute;
 import meeql;
 import print;
@@ -15,6 +16,11 @@ struct load_stuff {
   tora::stmt grp_stmt;
   tora::stmt art_stmt;
   tora::stmt ver_stmt;
+};
+struct dep_stuff {
+  tora::db * db;
+  tora::stmt ver_stmt;
+  tora::stmt dm_stmt;
 };
 
 static void load_pom(load_stuff * ls, jute::view pom_path) {
@@ -44,6 +50,32 @@ static void load_pom(load_stuff * ls, jute::view pom_path) {
   ls->ver_stmt.reset();
 }
 
+static unsigned find_ver(dep_stuff * ds, jute::view grp, jute::view art, jute::view ver) {
+  ds->ver_stmt.bind(1, grp);
+  ds->ver_stmt.bind(2, art);
+  ds->ver_stmt.bind(3, ver);
+  if (!ds->ver_stmt.step()) die("version not found for: ", grp, ":", art, ":", ver);
+
+  unsigned id = ds->ver_stmt.column_int(0);
+  if (ds->ver_stmt.step()) die("duplicate version found");
+
+  ds->ver_stmt.reset();
+  return id;
+}
+static void load_deps(dep_stuff * ds, jute::view pom_path) {
+  auto pom = cavan::read_pom(pom_path);
+  auto from = find_ver(ds, pom->grp, pom->art, pom->ver);
+
+  for (auto &[d, _]: pom->deps_mgmt) {
+    auto to = find_ver(ds, *d.grp, d.art, *d.ver);
+
+    ds->dm_stmt.bind(1, from);
+    ds->dm_stmt.bind(2, to);
+    ds->dm_stmt.step();
+    ds->dm_stmt.reset();
+  }
+}
+
 int main(int argc, char ** argv) try {
   tora::db db { ":memory:" };
 
@@ -67,6 +99,17 @@ int main(int argc, char ** argv) try {
       pom   TEXT NOT NULL,
       UNIQUE (art, name)
     ) STRICT;
+
+    CREATE TABLE dep_mgmt (
+      from_ver INTEGER NOT NULL REFERENCES ver (id),
+      to_ver   INTEGER REFERENCES ver (id)
+    ) STRICT;
+
+    CREATE TABLE dep (
+      from_ver INTEGER NOT NULL REFERENCES ver (id),
+      to_art   INTEGER NOT NULL REFERENCES art (id),
+      to_ver   INTEGER REFERENCES ver (id)
+    ) STRICT;
   )");
 
   load_stuff ls {
@@ -88,6 +131,22 @@ int main(int argc, char ** argv) try {
     )"),
   };
   meeql::recurse_repo_dir(curry(load_pom, &ls));
+  dep_stuff ds {
+    .db = &db,
+    .ver_stmt = db.prepare(R"(
+      SELECT ver.id
+      FROM ver
+      JOIN art ON art.id = ver.art
+      JOIN grp ON grp.id = art.grp
+      WHERE grp.name = ?
+        AND art.name = ?
+        AND ver.name = ?
+    )"),
+    .dm_stmt = db.prepare(R"(
+      INSERT INTO dep_mgmt (from_ver, to_ver) VALUES (?, ?)
+    )"),
+  };
+  meeql::recurse_repo_dir(curry(load_deps, &ds));
 } catch (...) {
   return 1;
 }
