@@ -1,6 +1,7 @@
 #pragma leco tool
 import cavan;
 import jute;
+import hai;
 import meeql;
 import print;
 import tora;
@@ -50,29 +51,42 @@ static void load_pom(load_stuff * ls, jute::view pom_path) {
   ls->ver_stmt.reset();
 }
 
+struct version_not_found {};
 static unsigned find_ver(dep_stuff * ds, jute::view grp, jute::view art, jute::view ver) {
+  ds->ver_stmt.reset();
   ds->ver_stmt.bind(1, grp);
   ds->ver_stmt.bind(2, art);
   ds->ver_stmt.bind(3, ver);
-  if (!ds->ver_stmt.step()) die("version not found for: ", grp, ":", art, ":", ver);
+  if (!ds->ver_stmt.step()) throw version_not_found {};
 
   unsigned id = ds->ver_stmt.column_int(0);
   if (ds->ver_stmt.step()) die("duplicate version found");
 
-  ds->ver_stmt.reset();
   return id;
 }
 static void load_deps(dep_stuff * ds, jute::view pom_path) {
+  static hai::varray<unsigned> buffer { 1024 };
+  buffer.truncate(0);
+
   auto pom = cavan::read_pom(pom_path);
-  auto from = find_ver(ds, pom->grp, pom->art, pom->ver);
+  cavan::merge_props(pom);
 
-  for (auto &[d, _]: pom->deps_mgmt) {
-    auto to = find_ver(ds, *d.grp, d.art, *d.ver);
+  try {
+    auto from = find_ver(ds, pom->grp, pom->art, pom->ver);
+    for (auto &[d, _]: pom->deps_mgmt) {
+      auto grp = cavan::apply_props(pom, d.grp);
+      auto ver = cavan::apply_props(pom, d.ver);
+      auto to = find_ver(ds, *grp, d.art, *ver);
+      buffer.push_back_doubling(to);
+    }
 
-    ds->dm_stmt.bind(1, from);
-    ds->dm_stmt.bind(2, to);
-    ds->dm_stmt.step();
-    ds->dm_stmt.reset();
+    for (auto to : buffer) {
+      ds->dm_stmt.bind(1, from);
+      ds->dm_stmt.bind(2, to);
+      ds->dm_stmt.step();
+      ds->dm_stmt.reset();
+    }
+  } catch (version_not_found) {
   }
 }
 
@@ -147,6 +161,11 @@ int main(int argc, char ** argv) try {
     )"),
   };
   meeql::recurse_repo_dir(curry(load_deps, &ds));
+
+  auto stmt = db.prepare("SELECT COUNT(*) FROM dep_mgmt");
+  stmt.step();
+  putln("found ", stmt.column_int(0));
+
 } catch (...) {
-  return 1;
+  return 13;
 }
