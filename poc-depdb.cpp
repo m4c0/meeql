@@ -102,7 +102,7 @@ public:
     m_ins_ver_stmt.reset();
     m_ins_ver_stmt.bind(1, m_ins_art_stmt.column_int(0));
     m_ins_ver_stmt.bind(2, ver);
-    if (pom != "") m_ins_ver_stmt.bind(3, pom);
+    m_ins_ver_stmt.bind(3, pom);
     m_ins_ver_stmt.step();
 
     return m_ins_ver_stmt.column_int(0);
