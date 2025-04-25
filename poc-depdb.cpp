@@ -127,14 +127,7 @@ public:
   }
 };
 
-struct load_stuff {
-  db * db;
-};
-struct dep_stuff {
-  db * db;
-};
-
-static void load_pom(load_stuff * ls, jute::view pom_path) {
+static void load_pom(db * db, jute::view pom_path) {
   auto rel_path = pom_path.subview(meeql::repo_dir().size() + 1).after;
   auto [r0, fn] = rel_path.rsplit('/');
   auto [r1, ver] = r0.rsplit('/');
@@ -143,10 +136,10 @@ static void load_pom(load_stuff * ls, jute::view pom_path) {
   auto grp = r2.cstr();
   for (auto & c : grp) if (c == '/') c = '.';
 
-  ls->db->insert(grp, art, ver, pom_path);
+  db->insert(grp, art, ver, pom_path);
 }
 
-static void load_deps(dep_stuff * ds, jute::view pom_path) {
+static void load_deps(db * db, jute::view pom_path) {
   static hai::varray<unsigned> buffer { 1024 };
   buffer.truncate(0);
 
@@ -154,15 +147,15 @@ static void load_deps(dep_stuff * ds, jute::view pom_path) {
   cavan::merge_props(pom);
 
   try {
-    auto from = ds->db->find_ver(pom->grp, pom->art, pom->ver);
+    auto from = db->find_ver(pom->grp, pom->art, pom->ver);
     for (auto &[d, _]: pom->deps_mgmt) {
       auto grp = cavan::apply_props(pom, d.grp);
       auto ver = cavan::apply_props(pom, d.ver);
-      auto to = ds->db->find_ver(*grp, d.art, *ver);
+      auto to = db->find_ver(*grp, d.art, *ver);
       buffer.push_back_doubling(to);
     }
 
-    for (auto to : buffer) ds->db->add_dep_mgmt(from, to);
+    for (auto to : buffer) db->add_dep_mgmt(from, to);
   } catch (version_not_found) {
   }
 }
@@ -170,14 +163,8 @@ static void load_deps(dep_stuff * ds, jute::view pom_path) {
 int main(int argc, char ** argv) try {
   db db {};
 
-  load_stuff ls {
-    .db = &db,
-  };
-  meeql::recurse_repo_dir(curry(load_pom, &ls));
-  dep_stuff ds {
-    .db = &db,
-  };
-  meeql::recurse_repo_dir(curry(load_deps, &ds));
+  meeql::recurse_repo_dir(curry(load_pom, &db));
+  meeql::recurse_repo_dir(curry(load_deps, &db));
 
   auto stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
   stmt.step();
