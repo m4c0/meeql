@@ -114,56 +114,23 @@ public:
     m_ins_dm_stmt.bind(2, to);
     m_ins_dm_stmt.step();
   }
-
-  [[nodiscard]] unsigned find_ver(jute::view grp, jute::view art, jute::view ver) {
-    m_find_ver_stmt.reset();
-    m_find_ver_stmt.bind(1, grp);
-    m_find_ver_stmt.bind(2, art);
-    m_find_ver_stmt.bind(3, ver);
-    if (!m_find_ver_stmt.step()) throw version_not_found {};
-    auto id = m_find_ver_stmt.column_int(0); 
-    if (m_find_ver_stmt.step()) die("duplicate version found");
-    return id;
-  }
 };
 
-static void load_pom(db * db, jute::view pom_path) {
-  auto rel_path = pom_path.subview(meeql::repo_dir().size() + 1).after;
-  auto [r0, fn] = rel_path.rsplit('/');
-  auto [r1, ver] = r0.rsplit('/');
-  auto [r2, art] = r1.rsplit('/');
-
-  auto grp = r2.cstr();
-  for (auto & c : grp) if (c == '/') c = '.';
-
-  db->insert(grp, art, ver, pom_path);
-}
-
 static void load_deps(db * db, jute::view pom_path) {
-  static hai::varray<unsigned> buffer { 1024 };
-  buffer.truncate(0);
-
   auto pom = cavan::read_pom(pom_path);
   cavan::merge_props(pom);
 
-  try {
-    auto from = db->find_ver(pom->grp, pom->art, pom->ver);
-    for (auto &[d, _]: pom->deps_mgmt) {
-      auto grp = cavan::apply_props(pom, d.grp);
-      auto ver = cavan::apply_props(pom, d.ver);
-      auto to = db->find_ver(*grp, d.art, *ver);
-      buffer.push_back_doubling(to);
-    }
-
-    for (auto to : buffer) db->add_dep_mgmt(from, to);
-  } catch (version_not_found) {
+  auto from = db->insert(pom->grp, pom->art, pom->ver, pom_path);
+  for (auto &[d, _]: pom->deps_mgmt) {
+    auto grp = cavan::apply_props(pom, d.grp);
+    auto ver = cavan::apply_props(pom, d.ver);
+    db->add_dep_mgmt(from, db->insert(*grp, d.art, *ver, ""));
   }
 }
 
 int main(int argc, char ** argv) try {
   db db {};
 
-  meeql::recurse_repo_dir(curry(load_pom, &db));
   meeql::recurse_repo_dir(curry(load_deps, &db));
 
   auto stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
