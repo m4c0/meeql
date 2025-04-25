@@ -31,7 +31,7 @@ static auto curry(auto fn, auto param) {
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
       name  TEXT NOT NULL,
       art   INTEGER NOT NULL REFERENCES art (id),
-      pom   TEXT NOT NULL,
+      pom   TEXT,
       UNIQUE (art, name)
     ) STRICT;
 
@@ -65,7 +65,7 @@ class db {
     RETURNING id
   )");
   tora::stmt m_ins_ver_stmt = m_db.prepare(R"(
-    INSERT INTO ver (art, name) VALUES (?, ?)
+    INSERT INTO ver (art, name, pom) VALUES (?, ?, ?)
     ON CONFLICT DO
     UPDATE SET id = id
     RETURNING id
@@ -74,7 +74,7 @@ class db {
 public:
   [[nodiscard]] constexpr auto * handle() { return &m_db; }
 
-  [[nodiscard]] unsigned ensure(jute::view grp, jute::view art, jute::view ver) {
+  unsigned ensure(jute::view grp, jute::view art, jute::view ver, jute::view pom) {
     m_ins_grp_stmt.reset();
     m_ins_grp_stmt.bind(1, grp);
     m_ins_grp_stmt.step();
@@ -87,6 +87,7 @@ public:
     m_ins_ver_stmt.reset();
     m_ins_ver_stmt.bind(1, m_ins_art_stmt.column_int(0));
     m_ins_ver_stmt.bind(2, ver);
+    if (pom != "") m_ins_ver_stmt.bind(3, pom);
     m_ins_ver_stmt.step();
 
     return m_ins_ver_stmt.column_int(0);
@@ -94,13 +95,10 @@ public:
 };
 
 struct load_stuff {
-  tora::db * db;
-  tora::stmt grp_stmt;
-  tora::stmt art_stmt;
-  tora::stmt ver_stmt;
+  db * db;
 };
 struct dep_stuff {
-  tora::db * db;
+  db * db;
   tora::stmt ver_stmt;
   tora::stmt dm_stmt;
 };
@@ -114,22 +112,7 @@ static void load_pom(load_stuff * ls, jute::view pom_path) {
   auto grp = r2.cstr();
   for (auto & c : grp) if (c == '/') c = '.';
 
-  ls->grp_stmt.bind(1, grp);
-  ls->grp_stmt.step();
-  auto gid = ls->grp_stmt.column_int(0);
-  ls->grp_stmt.reset();
-
-  ls->art_stmt.bind(1, gid);
-  ls->art_stmt.bind(2, art);
-  ls->art_stmt.step();
-  auto aid = ls->art_stmt.column_int(0);
-  ls->art_stmt.reset();
-
-  ls->ver_stmt.bind(1, aid);
-  ls->ver_stmt.bind(2, ver);
-  ls->ver_stmt.bind(3, pom_path);
-  ls->ver_stmt.step();
-  ls->ver_stmt.reset();
+  ls->db->ensure(grp, art, ver, pom_path);
 }
 
 struct version_not_found {};
@@ -175,26 +158,11 @@ int main(int argc, char ** argv) try {
   db db {};
 
   load_stuff ls {
-    .db = db.handle(),
-    .grp_stmt = db.handle()->prepare(R"(
-      INSERT INTO grp (name) VALUES (?) 
-      ON CONFLICT DO
-      UPDATE SET id = id
-      RETURNING id
-    )"),
-    .art_stmt = db.handle()->prepare(R"(
-      INSERT INTO art (grp, name) VALUES (?, ?) 
-      ON CONFLICT DO
-      UPDATE SET id = id
-      RETURNING id
-    )"),
-    .ver_stmt = db.handle()->prepare(R"(
-      INSERT OR IGNORE INTO ver (art, name, pom) VALUES (?, ?, ?) 
-    )"),
+    .db = &db,
   };
   meeql::recurse_repo_dir(curry(load_pom, &ls));
   dep_stuff ds {
-    .db = db.handle(),
+    .db = &db,
     .ver_stmt = db.handle()->prepare(R"(
       SELECT ver.id
       FROM ver
