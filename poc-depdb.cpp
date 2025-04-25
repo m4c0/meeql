@@ -12,6 +12,87 @@ static auto curry(auto fn, auto param) {
   };
 }
 
+[[nodiscard]] static auto init_db() {
+  tora::db db { ":memory:" };
+  db.exec(R"(
+    CREATE TABLE grp (
+      id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      name  TEXT NOT NULL UNIQUE
+    ) STRICT;
+
+    CREATE TABLE art (
+      id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      name  TEXT NOT NULL,
+      grp   INTEGER NOT NULL REFERENCES grp (id),
+      UNIQUE (grp, name)
+    ) STRICT;
+
+    CREATE TABLE ver (
+      id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      name  TEXT NOT NULL,
+      art   INTEGER NOT NULL REFERENCES art (id),
+      pom   TEXT NOT NULL,
+      UNIQUE (art, name)
+    ) STRICT;
+
+    CREATE TABLE dep_mgmt (
+      from_ver INTEGER NOT NULL REFERENCES ver (id),
+      to_ver   INTEGER REFERENCES ver (id)
+    ) STRICT;
+
+    CREATE TABLE dep (
+      from_ver INTEGER NOT NULL REFERENCES ver (id),
+      to_art   INTEGER NOT NULL REFERENCES art (id),
+      to_ver   INTEGER REFERENCES ver (id)
+    ) STRICT;
+  )");
+  return db;
+}
+
+class db {
+  tora::db m_db = init_db();
+
+  tora::stmt m_ins_grp_stmt = m_db.prepare(R"(
+    INSERT INTO grp (name) VALUES (?) 
+    ON CONFLICT DO
+    UPDATE SET id = id
+    RETURNING id
+  )");
+  tora::stmt m_ins_art_stmt = m_db.prepare(R"(
+    INSERT INTO art (grp, name) VALUES (?, ?) 
+    ON CONFLICT DO
+    UPDATE SET id = id
+    RETURNING id
+  )");
+  tora::stmt m_ins_ver_stmt = m_db.prepare(R"(
+    INSERT INTO ver (art, name) VALUES (?, ?)
+    ON CONFLICT DO
+    UPDATE SET id = id
+    RETURNING id
+  )");
+
+public:
+  [[nodiscard]] constexpr auto * handle() { return &m_db; }
+
+  [[nodiscard]] unsigned ensure(jute::view grp, jute::view art, jute::view ver) {
+    m_ins_grp_stmt.reset();
+    m_ins_grp_stmt.bind(1, grp);
+    m_ins_grp_stmt.step();
+
+    m_ins_art_stmt.reset();
+    m_ins_art_stmt.bind(1, m_ins_grp_stmt.column_int(0));
+    m_ins_art_stmt.bind(2, art);
+    m_ins_art_stmt.step();
+
+    m_ins_ver_stmt.reset();
+    m_ins_ver_stmt.bind(1, m_ins_art_stmt.column_int(0));
+    m_ins_ver_stmt.bind(2, ver);
+    m_ins_ver_stmt.step();
+
+    return m_ins_ver_stmt.column_int(0);
+  }
+};
+
 struct load_stuff {
   tora::db * db;
   tora::stmt grp_stmt;
@@ -91,63 +172,30 @@ static void load_deps(dep_stuff * ds, jute::view pom_path) {
 }
 
 int main(int argc, char ** argv) try {
-  tora::db db { ":memory:" };
-
-  db.exec(R"(
-    CREATE TABLE grp (
-      id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      name  TEXT NOT NULL UNIQUE
-    ) STRICT;
-
-    CREATE TABLE art (
-      id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      name  TEXT NOT NULL,
-      grp   INTEGER NOT NULL REFERENCES grp (id),
-      UNIQUE (grp, name)
-    ) STRICT;
-
-    CREATE TABLE ver (
-      id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      name  TEXT NOT NULL,
-      art   INTEGER NOT NULL REFERENCES art (id),
-      pom   TEXT NOT NULL,
-      UNIQUE (art, name)
-    ) STRICT;
-
-    CREATE TABLE dep_mgmt (
-      from_ver INTEGER NOT NULL REFERENCES ver (id),
-      to_ver   INTEGER REFERENCES ver (id)
-    ) STRICT;
-
-    CREATE TABLE dep (
-      from_ver INTEGER NOT NULL REFERENCES ver (id),
-      to_art   INTEGER NOT NULL REFERENCES art (id),
-      to_ver   INTEGER REFERENCES ver (id)
-    ) STRICT;
-  )");
+  db db {};
 
   load_stuff ls {
-    .db = &db,
-    .grp_stmt = db.prepare(R"(
+    .db = db.handle(),
+    .grp_stmt = db.handle()->prepare(R"(
       INSERT INTO grp (name) VALUES (?) 
       ON CONFLICT DO
       UPDATE SET id = id
       RETURNING id
     )"),
-    .art_stmt = db.prepare(R"(
+    .art_stmt = db.handle()->prepare(R"(
       INSERT INTO art (grp, name) VALUES (?, ?) 
       ON CONFLICT DO
       UPDATE SET id = id
       RETURNING id
     )"),
-    .ver_stmt = db.prepare(R"(
+    .ver_stmt = db.handle()->prepare(R"(
       INSERT OR IGNORE INTO ver (art, name, pom) VALUES (?, ?, ?) 
     )"),
   };
   meeql::recurse_repo_dir(curry(load_pom, &ls));
   dep_stuff ds {
-    .db = &db,
-    .ver_stmt = db.prepare(R"(
+    .db = db.handle(),
+    .ver_stmt = db.handle()->prepare(R"(
       SELECT ver.id
       FROM ver
       JOIN art ON art.id = ver.art
@@ -156,13 +204,13 @@ int main(int argc, char ** argv) try {
         AND art.name = ?
         AND ver.name = ?
     )"),
-    .dm_stmt = db.prepare(R"(
+    .dm_stmt = db.handle()->prepare(R"(
       INSERT INTO dep_mgmt (from_ver, to_ver) VALUES (?, ?)
     )"),
   };
   meeql::recurse_repo_dir(curry(load_deps, &ds));
 
-  auto stmt = db.prepare("SELECT COUNT(*) FROM dep_mgmt");
+  auto stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
   stmt.step();
   putln("found ", stmt.column_int(0));
 
