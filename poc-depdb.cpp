@@ -76,6 +76,13 @@ class db {
     INSERT INTO dep_mgmt (from_ver, to_ver) VALUES (?, ?)
   )");
 
+  tora::stmt m_ins_depv_stmt = m_db.prepare(R"(
+    INSERT INTO dep (from_ver, to_art, to_ver) VALUES (?, ?, ?)
+  )");
+  tora::stmt m_ins_depa_stmt = m_db.prepare(R"(
+    INSERT INTO dep (from_ver, to_art) VALUES (?, ?)
+  )");
+
   tora::stmt m_find_ver_stmt = m_db.prepare(R"(
     SELECT ver.id
     FROM ver
@@ -86,9 +93,32 @@ class db {
       AND ver.name = ?
   )");
 
+  [[nodiscard]] unsigned find_ver(jute::view grp, jute::view art, jute::view ver) {
+    m_find_ver_stmt.reset();
+    m_find_ver_stmt.bind(1, grp);
+    m_find_ver_stmt.bind(2, art);
+    m_find_ver_stmt.bind(3, ver);
+    if (!m_find_ver_stmt.step()) throw version_not_found {};
+    auto id = m_find_ver_stmt.column_int(0); 
+    if (m_find_ver_stmt.step()) die("duplicate version found");
+    return id;
+  }
+
 public:
   [[nodiscard]] constexpr auto * handle() { return &m_db; }
 
+  unsigned insert(jute::view grp, jute::view art) {
+    m_ins_grp_stmt.reset();
+    m_ins_grp_stmt.bind(1, grp);
+    m_ins_grp_stmt.step();
+
+    m_ins_art_stmt.reset();
+    m_ins_art_stmt.bind(1, m_ins_grp_stmt.column_int(0));
+    m_ins_art_stmt.bind(2, art);
+    m_ins_art_stmt.step();
+
+    return m_ins_art_stmt.column_int(0);
+  }
   unsigned insert(jute::view grp, jute::view art, jute::view ver, jute::view pom) {
     m_ins_grp_stmt.reset();
     m_ins_grp_stmt.bind(1, grp);
@@ -114,6 +144,18 @@ public:
     m_ins_dm_stmt.bind(2, to);
     m_ins_dm_stmt.step();
   }
+  void add_dep_a(unsigned from, unsigned to_a) {
+    m_ins_depv_stmt.reset();
+    m_ins_depv_stmt.bind(1, from);
+    m_ins_depv_stmt.bind(2, to_a);
+    m_ins_depv_stmt.step();
+  }
+  void add_dep_v(unsigned from, unsigned to_v) {
+    m_ins_depv_stmt.reset();
+    m_ins_depv_stmt.bind(1, from);
+    m_ins_depv_stmt.bind(2, to_v);
+    m_ins_depv_stmt.step();
+  }
 };
 
 static void load_deps(db * db, jute::view pom_path) try {
@@ -126,6 +168,12 @@ static void load_deps(db * db, jute::view pom_path) try {
     auto grp = cavan::apply_props(pom, d.grp);
     auto ver = cavan::apply_props(pom, d.ver);
     db->add_dep_mgmt(from, db->insert(*grp, d.art, *ver, ""));
+  }
+  for (auto &[d, _]: pom->deps) {
+    auto grp = cavan::apply_props(pom, d.grp);
+    auto ver = cavan::apply_props(pom, d.ver);
+    if (*ver == "") db->add_dep_a(from, db->insert(*grp, d.art));
+    else db->add_dep_v(from, db->insert(*grp, d.art, *ver, ""));
   }
 } catch (...) {
   // TODO: have better errors in cavan
@@ -143,6 +191,10 @@ int main(int argc, char ** argv) try {
   stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
   stmt.step();
   putln("found ", stmt.column_int(0), " dm links");
+
+  stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep");
+  stmt.step();
+  putln("found ", stmt.column_int(0), " dep links");
 
 } catch (...) {
   return 13;
