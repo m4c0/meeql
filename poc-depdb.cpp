@@ -116,8 +116,9 @@ public:
   }
 };
 
-static void load_deps(db * db, jute::view pom_path) {
+static void load_deps(db * db, jute::view pom_path) try {
   auto pom = cavan::read_pom(pom_path);
+  cavan::read_parent_chain(pom);
   cavan::merge_props(pom);
 
   auto from = db->insert(pom->grp, pom->art, pom->ver, pom_path);
@@ -126,6 +127,8 @@ static void load_deps(db * db, jute::view pom_path) {
     auto ver = cavan::apply_props(pom, d.ver);
     db->add_dep_mgmt(from, db->insert(*grp, d.art, *ver, ""));
   }
+} catch (...) {
+  // TODO: have better errors in cavan
 }
 
 int main(int argc, char ** argv) try {
