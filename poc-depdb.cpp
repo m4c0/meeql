@@ -136,9 +136,13 @@ int main(int argc, char ** argv) try {
 
   meeql::recurse_repo_dir(curry(load_deps, &db));
 
-  auto stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
+  auto stmt = db.handle()->prepare("SELECT COUNT(*) FROM ver");
   stmt.step();
-  putln("found ", stmt.column_int(0));
+  putln("found ", stmt.column_int(0), " vers");
+
+  stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
+  stmt.step();
+  putln("found ", stmt.column_int(0), " dm links");
 
 } catch (...) {
   return 13;
