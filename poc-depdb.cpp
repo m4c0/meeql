@@ -13,8 +13,8 @@ static auto curry(auto fn, auto param) {
 }
 
 // TODO: consider splitting dep_a and dep_v into different tables
-[[nodiscard]] static auto init_db() {
-  tora::db db { ":memory:" };
+[[nodiscard]] static auto init_db(const char * url) {
+  tora::db db { url };
   db.exec(R"(
     DROP TABLE IF EXISTS grp;
     CREATE TABLE grp (
@@ -67,7 +67,7 @@ static auto curry(auto fn, auto param) {
 
 struct version_not_found {};
 class db {
-  tora::db m_db = init_db();
+  tora::db m_db;
 
   tora::stmt m_ins_grp_stmt = m_db.prepare(R"(
     INSERT INTO grp (name) VALUES (?) 
@@ -121,6 +121,8 @@ class db {
   }
 
 public:
+  explicit db(const char * url) : m_db { init_db(url) } {}
+
   [[nodiscard]] constexpr auto * handle() { return &m_db; }
 
   unsigned insert(jute::view grp, jute::view art) {
@@ -196,7 +198,7 @@ static void load_deps(db * db, jute::view pom_path) try {
 }
 
 int main(int argc, char ** argv) try {
-  db db {};
+  db db { argc != 2 ? ":memory:" : argv[1] };
 
   meeql::recurse_repo_dir(curry(load_deps, &db));
 
