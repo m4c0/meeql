@@ -189,7 +189,7 @@ public:
   }
 };
 
-static void load_deps(db * db, jute::view pom_path) try {
+static unsigned load(db * db, jute::view pom_path) {
   auto pom = cavan::read_pom(pom_path);
   cavan::read_parent_chain(pom);
   cavan::merge_props(pom);
@@ -208,6 +208,12 @@ static void load_deps(db * db, jute::view pom_path) try {
     if (*ver == "") db->add_dep_a(from, db->insert(*grp, d.art));
     else db->add_dep_v(from, db->insert(*grp, d.art, *ver));
   }
+
+  return from;
+}
+
+static void try_load(db * db, jute::view pom_path) try {
+  load(db, pom_path);
 } catch (...) {
   // TODO: have more catchable errors in cavan
 }
@@ -215,7 +221,7 @@ static void load_deps(db * db, jute::view pom_path) try {
 int main(int argc, char ** argv) try {
   db db { argc != 2 ? ":memory:" : argv[1] };
 
-  meeql::recurse_repo_dir(curry(load_deps, &db));
+  meeql::recurse_repo_dir(curry(try_load, &db));
 
   auto stmt = db.handle()->prepare("SELECT COUNT(*) FROM ver");
   stmt.step();
