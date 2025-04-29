@@ -39,6 +39,16 @@ static auto curry(auto fn, auto param) {
       UNIQUE (art, name)
     ) STRICT;
 
+    DROP VIEW IF EXISTS gab;
+    CREATE VIEW gav AS
+    SELECT ver.id   AS id
+         , grp.name AS grp
+         , art.name AS art
+         , ver.name AS ver
+    FROM ver
+    JOIN art ON ver.art = art.id
+    JOIN grp ON art.grp = grp.id;
+
     DROP TABLE IF EXISTS dep_mgmt;
     CREATE TABLE dep_mgmt (
       from_ver INTEGER NOT NULL REFERENCES ver (id),
