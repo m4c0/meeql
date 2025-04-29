@@ -82,10 +82,16 @@ class db {
     RETURNING id
   )");
   tora::stmt m_ins_ver_stmt = m_db.prepare(R"(
-    INSERT INTO ver (art, name, pom) VALUES (?, ?, ?)
+    INSERT INTO ver (art, name) VALUES (?, ?)
     ON CONFLICT DO
     UPDATE SET id = id
     RETURNING id
+  )");
+
+  tora::stmt m_upd_ver_stmt = m_db.prepare(R"(
+    UPDATE ver
+    SET parent = ?, pom = ?
+    WHERE id = ?
   )");
 
   tora::stmt m_ins_dm_stmt = m_db.prepare(R"(
@@ -137,7 +143,7 @@ public:
 
     return m_ins_art_stmt.column_int(0);
   }
-  unsigned insert(jute::view grp, jute::view art, jute::view ver, jute::view pom) {
+  unsigned insert(jute::view grp, jute::view art, jute::view ver) {
     m_ins_grp_stmt.reset();
     m_ins_grp_stmt.bind(1, grp);
     m_ins_grp_stmt.step();
@@ -150,10 +156,17 @@ public:
     m_ins_ver_stmt.reset();
     m_ins_ver_stmt.bind(1, m_ins_art_stmt.column_int(0));
     m_ins_ver_stmt.bind(2, ver);
-    m_ins_ver_stmt.bind(3, pom);
     m_ins_ver_stmt.step();
 
     return m_ins_ver_stmt.column_int(0);
+  }
+
+  void update_ver(unsigned id, unsigned parent, jute::view pom_path) {
+    m_upd_ver_stmt.reset();
+    m_upd_ver_stmt.bind(1, parent);
+    m_upd_ver_stmt.bind(2, pom_path);
+    m_upd_ver_stmt.bind(3, id);
+    m_upd_ver_stmt.step();
   }
 
   void add_dep_mgmt(unsigned from, unsigned to) {
@@ -181,17 +194,19 @@ static void load_deps(db * db, jute::view pom_path) try {
   cavan::read_parent_chain(pom);
   cavan::merge_props(pom);
 
-  auto from = db->insert(pom->grp, pom->art, pom->ver, pom_path);
+  auto from = db->insert(pom->grp, pom->art, pom->ver);
+  db->update_ver(from, 0, pom_path);
+
   for (auto &[d, _]: pom->deps_mgmt) {
     auto grp = cavan::apply_props(pom, d.grp);
     auto ver = cavan::apply_props(pom, d.ver);
-    db->add_dep_mgmt(from, db->insert(*grp, d.art, *ver, ""));
+    db->add_dep_mgmt(from, db->insert(*grp, d.art, *ver));
   }
   for (auto &[d, _]: pom->deps) {
     auto grp = cavan::apply_props(pom, d.grp);
     auto ver = cavan::apply_props(pom, d.ver);
     if (*ver == "") db->add_dep_a(from, db->insert(*grp, d.art));
-    else db->add_dep_v(from, db->insert(*grp, d.art, *ver, ""));
+    else db->add_dep_v(from, db->insert(*grp, d.art, *ver));
   }
 } catch (...) {
   // TODO: have more catchable errors in cavan
