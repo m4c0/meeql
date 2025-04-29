@@ -12,14 +12,17 @@ static auto curry(auto fn, auto param) {
   };
 }
 
+// TODO: consider splitting dep_a and dep_v into different tables
 [[nodiscard]] static auto init_db() {
   tora::db db { ":memory:" };
   db.exec(R"(
+    DROP TABLE IF EXISTS grp;
     CREATE TABLE grp (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
       name  TEXT NOT NULL UNIQUE
     ) STRICT;
 
+    DROP TABLE IF EXISTS art;
     CREATE TABLE art (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
       name  TEXT NOT NULL,
@@ -27,6 +30,7 @@ static auto curry(auto fn, auto param) {
       UNIQUE (grp, name)
     ) STRICT;
 
+    DROP TABLE IF EXISTS ver;
     CREATE TABLE ver (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
       name  TEXT NOT NULL,
@@ -35,11 +39,13 @@ static auto curry(auto fn, auto param) {
       UNIQUE (art, name)
     ) STRICT;
 
+    DROP TABLE IF EXISTS dep_mgmt;
     CREATE TABLE dep_mgmt (
       from_ver INTEGER NOT NULL REFERENCES ver (id),
       to_ver   INTEGER REFERENCES ver (id)
     ) STRICT;
 
+    DROP TABLE IF EXISTS dep;
     CREATE TABLE dep (
       from_ver INTEGER NOT NULL REFERENCES ver (id),
       to_art   INTEGER NOT NULL REFERENCES art (id),
@@ -176,7 +182,7 @@ static void load_deps(db * db, jute::view pom_path) try {
     else db->add_dep_v(from, db->insert(*grp, d.art, *ver, ""));
   }
 } catch (...) {
-  // TODO: have better errors in cavan
+  // TODO: have more catchable errors in cavan
 }
 
 int main(int argc, char ** argv) try {
