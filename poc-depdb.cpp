@@ -39,7 +39,7 @@ static auto curry(auto fn, auto param) {
       UNIQUE (art, name)
     ) STRICT;
 
-    DROP VIEW IF EXISTS gab;
+    DROP VIEW IF EXISTS gav;
     CREATE VIEW gav AS
     SELECT ver.id   AS id
          , grp.name AS grp
