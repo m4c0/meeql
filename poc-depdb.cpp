@@ -220,24 +220,36 @@ static void try_load(db * db, jute::view pom_path) try {
 } catch (...) {
   // TODO: have more catchable errors in cavan
 }
+static void load(db * db) {
+  meeql::recurse_repo_dir(curry(try_load, db));
 
-int main(int argc, char ** argv) try {
-  db db { argc != 2 ? ":memory:" : argv[1] };
-
-  meeql::recurse_repo_dir(curry(try_load, &db));
-
-  auto stmt = db.handle()->prepare("SELECT COUNT(*) FROM ver");
+  auto stmt = db->handle()->prepare("SELECT COUNT(*) FROM ver");
   stmt.step();
   putln("found ", stmt.column_int(0), " vers");
 
-  stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
+  stmt = db->handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
   stmt.step();
   putln("found ", stmt.column_int(0), " dm links");
 
-  stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep");
+  stmt = db->handle()->prepare("SELECT COUNT(*) FROM dep");
   stmt.step();
   putln("found ", stmt.column_int(0), " dep links");
+}
 
+int main(int argc, char ** argv) try {
+  const auto shift = [&] { return jute::view::unsafe(argc == 1 ? "" : (--argc, *++argv)); };
+
+  db db { "out/test.db" };
+
+  auto cmd = shift();
+       if (cmd == ""    ) die("missing command");
+  else if (cmd == "load") load(&db);
+  else die("invalid command: ", cmd);
+
+
+  // TODO: add a command to read a pom to find its deps
+  // TODO: "ensure" parent chain of pom is in DB (without their pom paths?)
+  // TODO: traverse tree
 } catch (...) {
   return 13;
 }
