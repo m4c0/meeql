@@ -32,10 +32,11 @@ static auto curry(auto fn, auto param) {
 
     DROP TABLE IF EXISTS ver;
     CREATE TABLE ver (
-      id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-      name  TEXT NOT NULL,
-      art   INTEGER NOT NULL REFERENCES art (id),
-      pom   TEXT,
+      id     INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      name   TEXT NOT NULL,
+      art    INTEGER NOT NULL REFERENCES art (id),
+      parent INTEGER REFERENCES ver (id),
+      pom    TEXT,
       UNIQUE (art, name)
     ) STRICT;
 
@@ -163,7 +164,8 @@ public:
 
   void update_ver(unsigned id, unsigned parent, jute::view pom_path) {
     m_upd_ver_stmt.reset();
-    m_upd_ver_stmt.bind(1, parent);
+    if (parent == 0) m_upd_ver_stmt.bind(1);
+    else m_upd_ver_stmt.bind(1, parent);
     m_upd_ver_stmt.bind(2, pom_path);
     m_upd_ver_stmt.bind(3, id);
     m_upd_ver_stmt.step();
@@ -195,7 +197,8 @@ static unsigned load(db * db, jute::view pom_path) {
   cavan::merge_props(pom);
 
   auto from = db->insert(pom->grp, pom->art, pom->ver);
-  db->update_ver(from, 0, pom_path);
+  auto parent = pom->ppom ? db->insert(pom->ppom->grp, pom->ppom->art, pom->ppom->ver) : 0;
+  db->update_ver(from, parent, pom_path);
 
   for (auto &[d, _]: pom->deps_mgmt) {
     auto grp = cavan::apply_props(pom, d.grp);
