@@ -227,6 +227,14 @@ static void load(db * db) {
   stmt.step();
   putln("found ", stmt.column_int(0), " vers");
 
+  stmt = db->handle()->prepare("SELECT COUNT(*) FROM art");
+  stmt.step();
+  putln("found ", stmt.column_int(0), " arts");
+
+  stmt = db->handle()->prepare("SELECT COUNT(*) FROM grp");
+  stmt.step();
+  putln("found ", stmt.column_int(0), " grps");
+
   stmt = db->handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
   stmt.step();
   putln("found ", stmt.column_int(0), " dm links");
