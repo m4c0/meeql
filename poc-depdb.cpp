@@ -13,9 +13,8 @@ static auto curry(auto fn, auto param) {
 }
 
 // TODO: consider splitting dep_a and dep_v into different tables
-[[nodiscard]] static auto init_db(const char * url) {
-  tora::db db { url };
-  db.exec(R"(
+static void init_db(tora::db * db) {
+  db->exec(R"(
     DROP TABLE IF EXISTS grp;
     CREATE TABLE grp (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +62,6 @@ static auto curry(auto fn, auto param) {
       to_ver   INTEGER REFERENCES ver (id)
     ) STRICT;
   )");
-  return db;
 }
 
 struct version_not_found {};
@@ -116,6 +114,11 @@ class db {
       AND ver.name = ?
   )");
 
+public:
+  explicit db(const char * url) : m_db { url } {}
+
+  [[nodiscard]] constexpr auto * handle() { return &m_db; }
+
   [[nodiscard]] unsigned find_ver(jute::view grp, jute::view art, jute::view ver) {
     m_find_ver_stmt.reset();
     m_find_ver_stmt.bind(1, grp);
@@ -126,11 +129,6 @@ class db {
     if (m_find_ver_stmt.step()) die("duplicate version found");
     return id;
   }
-
-public:
-  explicit db(const char * url) : m_db { init_db(url) } {}
-
-  [[nodiscard]] constexpr auto * handle() { return &m_db; }
 
   unsigned insert(jute::view grp, jute::view art) {
     m_ins_grp_stmt.reset();
@@ -221,6 +219,7 @@ static void try_load(db * db, jute::view pom_path) try {
   // TODO: have more catchable errors in cavan
 }
 static void load(db * db) {
+  init_db(db->handle());
   meeql::recurse_repo_dir(curry(try_load, db));
 
   auto stmt = db->handle()->prepare("SELECT COUNT(*) FROM ver");
