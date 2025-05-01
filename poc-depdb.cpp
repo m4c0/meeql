@@ -222,20 +222,50 @@ static void load(db * db) {
   putln("found ", stmt.column_int(0), " dep links");
 }
 
+static unsigned insert_parent_chain(db * db, cavan::pom * pom) {
+  auto id = db->insert(pom->grp, pom->art, pom->ver);
+  auto parent = pom->ppom ? insert_parent_chain(db, pom->ppom) : 0;
+  db->update_ver(id, parent, pom->filename);
+  return id;
+}
+
+static void pomcp(db * db, jute::view pom_path) {
+  if (pom_path == "") die("missing pom filename");
+
+  auto pom = cavan::read_pom(pom_path);
+  cavan::read_parent_chain(pom);
+  cavan::merge_props(pom);
+
+  auto ver = insert_parent_chain(db, pom);
+
+  auto stmt = db->handle()->prepare(R"(
+    WITH RECURSIVE pc(id) AS (
+      VALUES(?)
+      UNION
+      SELECT parent
+      FROM ver
+      JOIN pc ON pc.id = ver.id
+    )
+    SELECT ver.id, pom
+    FROM pc
+    JOIN ver ON ver.id = pc.id
+  )");
+  stmt.bind(1, ver);
+  while (stmt.step()) {
+    putln(stmt.column_int(0), " ", stmt.column_view(1));
+  }
+}
+
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc == 1 ? "" : (--argc, *++argv)); };
 
   db db { "out/test.db" };
 
   auto cmd = shift();
-       if (cmd == ""    ) die("missing command");
-  else if (cmd == "load") load(&db);
+       if (cmd == ""     ) die("missing command");
+  else if (cmd == "load" ) load(&db);
+  else if (cmd == "pomcp") pomcp(&db, shift());
   else die("invalid command: ", cmd);
-
-
-  // TODO: add a command to read a pom to find its deps
-  // TODO: "ensure" parent chain of pom is in DB (without their pom paths?)
-  // TODO: traverse tree
 } catch (...) {
   return 13;
 }
