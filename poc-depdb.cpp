@@ -239,20 +239,23 @@ static void pomcp(db * db, jute::view pom_path) {
   auto ver = insert_parent_chain(db, pom);
 
   auto stmt = db->handle()->prepare(R"(
-    WITH RECURSIVE pc(id) AS (
-      VALUES(?)
+    WITH RECURSIVE pc(id, depth) AS (
+      VALUES(?, 0)
       UNION
-      SELECT parent
+      SELECT parent, pc.depth + 1
       FROM ver
       JOIN pc ON pc.id = ver.id
     )
-    SELECT ver.id, pom
+    SELECT ver.art, ver.id, ver.pom
     FROM pc
-    JOIN ver ON ver.id = pc.id
+    JOIN dep_mgmt dm ON dm.from_ver = pc.id
+    JOIN ver ON dm.to_ver = ver.id
+    GROUP BY ver.art
+    HAVING pc.depth = MIN(pc.depth)
   )");
   stmt.bind(1, ver);
   while (stmt.step()) {
-    putln(stmt.column_int(0), " ", stmt.column_view(1));
+    putln(stmt.column_int(0), " ", stmt.column_int(1), " ", stmt.column_view(2));
   }
 }
 
