@@ -104,31 +104,10 @@ class db {
     INSERT INTO dep (from_ver, to_art) VALUES (?, ?)
   )");
 
-  tora::stmt m_find_ver_stmt = m_db.prepare(R"(
-    SELECT ver.id
-    FROM ver
-    JOIN art ON art.id = ver.art
-    JOIN grp ON grp.id = art.grp
-    WHERE grp.name = ?
-      AND art.name = ?
-      AND ver.name = ?
-  )");
-
 public:
   explicit db(const char * url) : m_db { url } {}
 
   [[nodiscard]] constexpr auto * handle() { return &m_db; }
-
-  [[nodiscard]] unsigned find_ver(jute::view grp, jute::view art, jute::view ver) {
-    m_find_ver_stmt.reset();
-    m_find_ver_stmt.bind(1, grp);
-    m_find_ver_stmt.bind(2, art);
-    m_find_ver_stmt.bind(3, ver);
-    if (!m_find_ver_stmt.step()) throw version_not_found {};
-    auto id = m_find_ver_stmt.column_int(0); 
-    if (m_find_ver_stmt.step()) die("duplicate version found");
-    return id;
-  }
 
   unsigned insert(jute::view grp, jute::view art) {
     m_ins_grp_stmt.reset();
