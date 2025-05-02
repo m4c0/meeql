@@ -276,10 +276,10 @@ static void pomcp(jute::view pom_path) {
   stmt.step();
 
   stmt = db.handle()->prepare(R"(
-    SELECT r.id, r.pom
-    FROM dm_res AS r
-    JOIN art ON art.id = r.art
-    JOIN grp ON grp.id = art.grp
+    SELECT r.id, r.pom, art.name
+    FROM grp
+    JOIN art ON grp.id = art.grp
+    LEFT JOIN dm_res AS r ON art.id = r.art
     WHERE grp.name = ?
       AND art.name = ?
   )");
@@ -290,7 +290,9 @@ static void pomcp(jute::view pom_path) {
       stmt.bind(1, *d.grp);
       stmt.bind(2, d.art);
       stmt.step();
-      putln(stmt.column_int(0), " ", stmt.column_view(1));
+
+      auto pom = stmt.column_view(1);
+      putln(stmt.column_int(0), " ", pom == "" ? stmt.column_view(2) : pom);
     } else {
       putln("> ", *d.grp, ":", d.art, ":", *d.ver);
     }
