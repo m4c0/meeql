@@ -257,6 +257,10 @@ static void pomcp(jute::view pom_path) {
     WITH RECURSIVE pc(id, depth) AS (
       VALUES(?, 0)
       UNION
+      SELECT to_ver, pc.depth + 1
+      FROM dep_mgmt_imports
+      JOIN pc ON pc.id = from_ver
+      UNION
       SELECT parent, pc.depth + 1
       FROM ver
       JOIN pc ON pc.id = ver.id
