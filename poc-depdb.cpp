@@ -6,6 +6,8 @@ import meeql;
 import print;
 import tora;
 
+static constexpr const char * dbname = "out/test.db";
+
 static auto curry(auto fn, auto param) {
   return [=](auto ... args) {
     return fn(param, args...);
@@ -13,8 +15,8 @@ static auto curry(auto fn, auto param) {
 }
 
 // TODO: consider splitting dep_a and dep_v into different tables
-static void init_db(tora::db * db) {
-  db->exec(R"(
+static void init_db() {
+  tora::db { dbname }.exec(R"(
     DROP TABLE IF EXISTS grp;
     CREATE TABLE grp (
       id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +68,7 @@ static void init_db(tora::db * db) {
 
 struct version_not_found {};
 class db {
-  tora::db m_db;
+  tora::db m_db { dbname };
 
   tora::stmt m_ins_grp_stmt = m_db.prepare(R"(
     INSERT INTO grp (name) VALUES (?) 
@@ -105,8 +107,6 @@ class db {
   )");
 
 public:
-  explicit db(const char * url) : m_db { url } {}
-
   [[nodiscard]] constexpr auto * handle() { return &m_db; }
 
   unsigned insert(jute::view grp, jute::view art) {
@@ -168,7 +168,7 @@ public:
   }
 };
 
-static unsigned load(db * db, jute::view pom_path) {
+static void try_load(db * db, jute::view pom_path) try {
   auto pom = cavan::read_pom(pom_path);
   cavan::read_parent_chain(pom);
   cavan::merge_props(pom);
@@ -188,36 +188,32 @@ static unsigned load(db * db, jute::view pom_path) {
     if (*ver == "") db->add_dep_a(from, db->insert(*grp, d.art));
     else db->add_dep_v(from, db->insert(*grp, d.art, *ver));
   }
-
-  return from;
-}
-
-static void try_load(db * db, jute::view pom_path) try {
-  load(db, pom_path);
 } catch (...) {
   // TODO: have more catchable errors in cavan
 }
-static void load(db * db) {
-  init_db(db->handle());
-  meeql::recurse_repo_dir(curry(try_load, db));
+static void load() {
+  init_db();
 
-  auto stmt = db->handle()->prepare("SELECT COUNT(*) FROM ver");
+  db db {};
+  meeql::recurse_repo_dir(curry(try_load, &db));
+
+  auto stmt = db.handle()->prepare("SELECT COUNT(*) FROM ver");
   stmt.step();
   putln("found ", stmt.column_int(0), " vers");
 
-  stmt = db->handle()->prepare("SELECT COUNT(*) FROM art");
+  stmt = db.handle()->prepare("SELECT COUNT(*) FROM art");
   stmt.step();
   putln("found ", stmt.column_int(0), " arts");
 
-  stmt = db->handle()->prepare("SELECT COUNT(*) FROM grp");
+  stmt = db.handle()->prepare("SELECT COUNT(*) FROM grp");
   stmt.step();
   putln("found ", stmt.column_int(0), " grps");
 
-  stmt = db->handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
+  stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep_mgmt");
   stmt.step();
   putln("found ", stmt.column_int(0), " dm links");
 
-  stmt = db->handle()->prepare("SELECT COUNT(*) FROM dep");
+  stmt = db.handle()->prepare("SELECT COUNT(*) FROM dep");
   stmt.step();
   putln("found ", stmt.column_int(0), " dep links");
 }
@@ -229,16 +225,17 @@ static unsigned insert_parent_chain(db * db, cavan::pom * pom) {
   return id;
 }
 
-static void pomcp(db * db, jute::view pom_path) {
+static void pomcp(jute::view pom_path) {
   if (pom_path == "") die("missing pom filename");
 
   auto pom = cavan::read_pom(pom_path);
   cavan::read_parent_chain(pom);
   cavan::merge_props(pom);
 
-  auto ver = insert_parent_chain(db, pom);
+  db db {};
+  auto ver = insert_parent_chain(&db, pom);
 
-  auto stmt = db->handle()->prepare(R"(
+  auto stmt = db.handle()->prepare(R"(
     CREATE TEMPORARY TABLE dm_res AS
     WITH RECURSIVE pc(id, depth) AS (
       VALUES(?, 0)
@@ -257,7 +254,7 @@ static void pomcp(db * db, jute::view pom_path) {
   stmt.bind(1, ver);
   stmt.step();
 
-  stmt = db->handle()->prepare(R"(
+  stmt = db.handle()->prepare(R"(
     SELECT r.id, r.pom
     FROM dm_res AS r
     JOIN art ON art.id = r.art
@@ -282,12 +279,10 @@ static void pomcp(db * db, jute::view pom_path) {
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc == 1 ? "" : (--argc, *++argv)); };
 
-  db db { "out/test.db" };
-
   auto cmd = shift();
        if (cmd == ""     ) die("missing command");
-  else if (cmd == "load" ) load(&db);
-  else if (cmd == "pomcp") pomcp(&db, shift());
+  else if (cmd == "load" ) load();
+  else if (cmd == "pomcp") pomcp(shift());
   else die("invalid command: ", cmd);
 } catch (...) {
   return 13;
