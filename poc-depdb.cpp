@@ -57,6 +57,12 @@ static void init_db() {
       to_ver   INTEGER REFERENCES ver (id)
     ) STRICT;
 
+    DROP TABLE IF EXISTS dep_mgmt_imports;
+    CREATE TABLE dep_mgmt_imports (
+      from_ver INTEGER NOT NULL REFERENCES ver (id),
+      to_ver   INTEGER REFERENCES ver (id)
+    ) STRICT;
+
     DROP TABLE IF EXISTS dep;
     CREATE TABLE dep (
       from_ver INTEGER NOT NULL REFERENCES ver (id),
@@ -97,6 +103,9 @@ class db {
 
   tora::stmt m_ins_dm_stmt = m_db.prepare(R"(
     INSERT INTO dep_mgmt (from_ver, to_ver) VALUES (?, ?)
+  )");
+  tora::stmt m_ins_dmi_stmt = m_db.prepare(R"(
+    INSERT INTO dep_mgmt_imports (from_ver, to_ver) VALUES (?, ?)
   )");
 
   tora::stmt m_ins_depv_stmt = m_db.prepare(R"(
@@ -154,6 +163,12 @@ public:
     m_ins_dm_stmt.bind(2, to);
     m_ins_dm_stmt.step();
   }
+  void add_dep_mgmt_import(unsigned from, unsigned to) {
+    m_ins_dmi_stmt.reset();
+    m_ins_dmi_stmt.bind(1, from);
+    m_ins_dmi_stmt.bind(2, to);
+    m_ins_dmi_stmt.step();
+  }
   void add_dep_a(unsigned from, unsigned to_a) {
     m_ins_depv_stmt.reset();
     m_ins_depv_stmt.bind(1, from);
@@ -180,7 +195,9 @@ static void try_load(db * db, jute::view pom_path) try {
   for (auto &[d, _]: pom->deps_mgmt) {
     auto grp = cavan::apply_props(pom, d.grp);
     auto ver = cavan::apply_props(pom, d.ver);
-    db->add_dep_mgmt(from, db->insert(*grp, d.art, *ver));
+    auto to = db->insert(*grp, d.art, *ver);
+    if (d.scp == "import") db->add_dep_mgmt_import(from, to);
+    else db->add_dep_mgmt(from, to);
   }
   for (auto &[d, _]: pom->deps) {
     auto grp = cavan::apply_props(pom, d.grp);
