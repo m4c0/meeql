@@ -239,6 +239,7 @@ static void pomcp(db * db, jute::view pom_path) {
   auto ver = insert_parent_chain(db, pom);
 
   auto stmt = db->handle()->prepare(R"(
+    CREATE TEMPORARY TABLE dm_res AS
     WITH RECURSIVE pc(id, depth) AS (
       VALUES(?, 0)
       UNION
@@ -246,7 +247,7 @@ static void pomcp(db * db, jute::view pom_path) {
       FROM ver
       JOIN pc ON pc.id = ver.id
     )
-    SELECT ver.art, ver.id, ver.pom
+    SELECT ver.*
     FROM pc
     JOIN dep_mgmt dm ON dm.from_ver = pc.id
     JOIN ver ON dm.to_ver = ver.id
@@ -254,8 +255,27 @@ static void pomcp(db * db, jute::view pom_path) {
     HAVING pc.depth = MIN(pc.depth)
   )");
   stmt.bind(1, ver);
-  while (stmt.step()) {
-    putln(stmt.column_int(0), " ", stmt.column_int(1), " ", stmt.column_view(2));
+  stmt.step();
+
+  stmt = db->handle()->prepare(R"(
+    SELECT r.id, r.pom
+    FROM dm_res AS r
+    JOIN art ON art.id = r.art
+    JOIN grp ON grp.id = art.grp
+    WHERE grp.name = ?
+      AND art.name = ?
+  )");
+  // TODO: BOMs (at least)
+  for (auto &[d, _]: pom->deps) {
+    if (*d.ver == "") {
+      stmt.reset();
+      stmt.bind(1, *d.grp);
+      stmt.bind(2, d.art);
+      stmt.step();
+      putln(stmt.column_int(0), " ", stmt.column_view(1));
+    } else {
+      putln("> ", *d.grp, ":", d.art, ":", *d.ver);
+    }
   }
 }
 
