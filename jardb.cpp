@@ -5,6 +5,20 @@ import mtime;
 import print;
 import tora;
 
+static void help() {
+  putln(R"(
+Available commands (in alphabetical order):
+  * mvndep <name>   - Outputs a snippet for a maven dependency
+  * search <prefix> - Search jars matching a given prefix
+
+Where:
+  * name  -  The name of a maven package.
+             Example: MyPackage would match com.mycompany:MyPackage
+  * prefix - A text query prefix for a maven package name.
+             Example: My would match com.mycompany:MyPackage
+)");
+}
+
 static auto curry(auto fn, auto param) {
   return [=](auto ... args) {
     return fn(param, args...);
@@ -79,7 +93,7 @@ int main(int argc, char ** argv) try {
 
   auto cmd = shift();
   auto param = shift();
-  if (cmd == "") die("missing command");
+  if (cmd == "") help();
   else if (cmd == "mvndep") cmd_mvndep(db, param);
   else if (cmd == "search") cmd_search(db, param);
   else die("Unknown command: ", cmd);
