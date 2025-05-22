@@ -35,8 +35,6 @@ static auto curry(auto fn, auto param) {
   };
 }
 
-static auto d(jute::view str) { return str.cstr(); }
-
 static constexpr bool is_lambda(jute::view cls) {
   auto [a, b] = cls.rsplit('$');
   if (a == "") return false;
@@ -55,12 +53,7 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
   auto jar_path = (pom_path.rsplit('.').before + ".jar").cstr();
   if (!mtime::of(jar_path.begin())) return;
 
-  auto unzip = d("unzip");
-  auto qq    = d("-qq");
-  auto l     = d("-l");
-  auto cls   = d("*.class");
-  char * args[] { unzip.begin(), qq.begin(), l.begin(), jar_path.begin(), cls.begin(), 0 };
-  p::proc p { args };
+  p::proc p { "unzip", "-qq", "-l", jar_path.begin(), "*.class" };
   while (p.gets()) {
     auto fqn = jute::view::unsafe(p.last_line_read())
       .rsplit(' ').after
