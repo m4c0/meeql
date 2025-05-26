@@ -7,41 +7,37 @@ import mtime;
 import print;
 import tora;
 
-static constexpr bool operator==(const cavan::pom & a, const cavan::dep & b) {
-  return a.grp == b.grp && a.art == b.art && a.ver == b.ver;
+[[nodiscard]] static auto db_init() {
+  tora::db db { ":memory:" };
+  db.exec(R"(
+    CREATE TABLE queue (
+      id      INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      pomfile TEXT NOT NULL
+    ) STRICT;
+  )");
+  return db;
+}
+[[nodiscard]] static auto db_enqueue(tora::db * db, jute::view file) {
+  auto stmt = db->prepare("INSERT INTO queue (pomfile) VALUES (?)");
+  stmt.bind(1, file);
+  stmt.step();
+}
+[[nodiscard]] static hai::cstr db_dequeue(tora::db * db) {
+  auto stmt = db->prepare(R"(
+    DELETE FROM queue 
+    WHERE id = (SELECT MIN(id) FROM queue)
+    RETURNING pomfile
+  )");
+  if (!stmt.step()) return {};
+  return stmt.column_view(0).cstr();
 }
 
-static cavan::pom * find_module(const cavan::pom * p, const cavan::dep & d) {
-  while (p) {
-    for (auto pc : cavan::read_modules(p)) {
-      if (*pc == d) return pc; 
-    }
-    p = p->ppom;
-  }
-  return nullptr;
-}
+static void preload_modules(cavan::pom * pom) {
+  cavan::read_parent_chain(pom);
 
-[[nodiscard]] static cavan::pom * check_dep(const cavan::dep & d, const cavan::pom * owner) {
-  auto file = cavan::path_of(*d.grp, d.art, *d.ver, "jar");
-  if (mtime::of(file.begin()) != 0) return cavan::read_pom(*d.grp, d.art, *d.ver);
+  auto _ = cavan::read_modules(pom);
 
-  auto mod = find_module(owner, d);
-  if (mod != nullptr) return mod;
-
-  die("missing jar: ", file);
-}
-
-static void dive_deps(cavan::pom * pom) try {
-  cavan::eff_pom(pom);
-
-  for (auto &[d, _]: pom->deps) {
-    auto dpom = check_dep(d, pom);
-    if (!dpom) die("dependency not found: ", d.grp, ":", d.art, ":", d.ver);
-
-    dive_deps(dpom);
-  }
-} catch (...) {
-  whilst("reading deps of ", pom->filename);
+  if (pom->ppom) preload_modules(pom->ppom);
 }
 
 int main(int argc, char ** argv) try {
@@ -50,8 +46,25 @@ int main(int argc, char ** argv) try {
   auto file = shift();
   if (file == "") die("missing file");
 
-  auto pom = cavan::read_pom(file);
-  dive_deps(pom);
+  preload_modules(cavan::read_pom(file));
+
+  auto db = db_init();
+  db_enqueue(&db, file);
+
+  hai::cstr next_file {};
+  while ((next_file = db_dequeue(&db)).size()) {
+    putln(next_file);
+
+    auto pom = cavan::read_pom(next_file);
+    cavan::eff_pom(pom);
+
+    for (auto &[d, _]: pom->deps) {
+      if (d.scp != "compile") continue;
+
+      auto dpom = cavan::read_pom(*d.grp, d.art, *d.ver);
+      db_enqueue(&db, dpom->filename);
+    }
+  }
 } catch (...) {
   return 13;
 }
