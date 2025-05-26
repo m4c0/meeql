@@ -7,6 +7,20 @@ import mtime;
 import print;
 import tora;
 
+static constexpr bool operator==(const cavan::pom & a, const cavan::dep & b) {
+  return a.grp == b.grp && a.art == b.art && a.ver == b.ver;
+}
+
+static cavan::pom * find_module(const cavan::pom * p, const cavan::dep & d) {
+  while (p) {
+    for (auto pc : cavan::read_modules(p)) {
+      if (*pc == d) return pc; 
+    }
+    p = p->ppom;
+  }
+  return nullptr;
+}
+
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc == 1 ? "" : (--argc, *++argv)); };
 
@@ -23,10 +37,13 @@ int main(int argc, char ** argv) try {
     for (auto &c : grp) if (c == '.') c = '/';
 
     auto file = repo + "/" + grp + "/" + d.art + "/" + d.ver + "/" + d.art + "-" + d.ver + ".jar";
-    if (mtime::of((*file).cstr().begin()) == 0) errln("missing jar: ", file);
+    if (mtime::of((*file).cstr().begin()) != 0) continue;
 
-    // TODO: Check for "reactor" deps
+    auto mod = find_module(pom, d);
+    if (mod != nullptr) continue;
+
     // TODO: Dive transitively
+    errln("missing jar: ", file);
   }
 } catch (...) {
   return 13;
