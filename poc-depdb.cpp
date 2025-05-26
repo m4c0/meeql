@@ -21,6 +21,17 @@ static cavan::pom * find_module(const cavan::pom * p, const cavan::dep & d) {
   return nullptr;
 }
 
+[[nodiscard]] static bool check_dep(const cavan::dep & d, const cavan::pom * owner) {
+  auto file = cavan::path_of(*d.grp, d.art, *d.ver, "jar");
+  if (mtime::of(file.begin()) != 0) return true;
+
+  auto mod = find_module(owner, d);
+  if (mod != nullptr) return true;
+
+  errln("missing jar: ", file);
+  return false;
+}
+
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc == 1 ? "" : (--argc, *++argv)); };
 
@@ -30,15 +41,9 @@ int main(int argc, char ** argv) try {
   auto pom = cavan::read_pom(file);
   cavan::eff_pom(pom);
 
+  // TODO: Dive transitively
   for (auto &[d, _]: pom->deps) {
-    auto file = cavan::path_of(*d.grp, d.art, *d.ver, "jar");
-    if (mtime::of(file.begin()) != 0) continue;
-
-    auto mod = find_module(pom, d);
-    if (mod != nullptr) continue;
-
-    // TODO: Dive transitively
-    errln("missing jar: ", file);
+    if (!check_dep(d, pom)) return 42;
   }
 } catch (...) {
   return 13;
