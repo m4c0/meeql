@@ -21,15 +21,27 @@ static cavan::pom * find_module(const cavan::pom * p, const cavan::dep & d) {
   return nullptr;
 }
 
-[[nodiscard]] static bool check_dep(const cavan::dep & d, const cavan::pom * owner) {
+[[nodiscard]] static cavan::pom * check_dep(const cavan::dep & d, const cavan::pom * owner) {
   auto file = cavan::path_of(*d.grp, d.art, *d.ver, "jar");
-  if (mtime::of(file.begin()) != 0) return true;
+  if (mtime::of(file.begin()) != 0) return cavan::read_pom(*d.grp, d.art, *d.ver);
 
   auto mod = find_module(owner, d);
-  if (mod != nullptr) return true;
+  if (mod != nullptr) return mod;
 
-  errln("missing jar: ", file);
-  return false;
+  die("missing jar: ", file);
+}
+
+static void dive_deps(cavan::pom * pom) try {
+  cavan::eff_pom(pom);
+
+  for (auto &[d, _]: pom->deps) {
+    auto dpom = check_dep(d, pom);
+    if (!dpom) die("dependency not found: ", d.grp, ":", d.art, ":", d.ver);
+
+    dive_deps(dpom);
+  }
+} catch (...) {
+  whilst("reading deps of ", pom->filename);
 }
 
 int main(int argc, char ** argv) try {
@@ -39,12 +51,7 @@ int main(int argc, char ** argv) try {
   if (file == "") die("missing file");
 
   auto pom = cavan::read_pom(file);
-  cavan::eff_pom(pom);
-
-  // TODO: Dive transitively
-  for (auto &[d, _]: pom->deps) {
-    if (!check_dep(d, pom)) return 42;
-  }
+  dive_deps(pom);
 } catch (...) {
   return 13;
 }
