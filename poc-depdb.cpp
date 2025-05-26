@@ -30,14 +30,9 @@ int main(int argc, char ** argv) try {
   auto pom = cavan::read_pom(file);
   cavan::eff_pom(pom);
 
-  const auto repo = meeql::repo_dir();
-
   for (auto &[d, _]: pom->deps) {
-    auto grp = (*d.grp).cstr();
-    for (auto &c : grp) if (c == '.') c = '/';
-
-    auto file = repo + "/" + grp + "/" + d.art + "/" + d.ver + "/" + d.art + "-" + d.ver + ".jar";
-    if (mtime::of((*file).cstr().begin()) != 0) continue;
+    auto file = cavan::path_of(*d.grp, d.art, *d.ver, "jar");
+    if (mtime::of(file.begin()) != 0) continue;
 
     auto mod = find_module(pom, d);
     if (mod != nullptr) continue;
