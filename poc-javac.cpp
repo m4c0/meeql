@@ -35,6 +35,7 @@ import tora;
   stmt = db.prepare("INSERT INTO rdep (s_pom, t_jar) VALUES (?, ?)");
   for (auto i = 0; i < deps.size(); i++) {
     auto p = deps.seek(i);
+    // TODO: deal with modules in the same reactor
     auto jar = cavan::path_of(p->grp, p->art, p->ver, "jar");
 
     stmt.reset();
@@ -78,6 +79,10 @@ int main(int argc, char ** argv) try {
 
   auto root = root_of(file);
 
+  // TODO: equivalent for tests
+  auto gen_path = (root + "/target/generated-sources/annotations").cstr();
+  auto out_path = (root + "/target/classes").cstr();
+
   auto jars = resolve_deps(root + "/pom.xml");
   unsigned sz = 0;
   for (auto & p : jars) sz += p.size() + 1;
@@ -88,10 +93,6 @@ int main(int argc, char ** argv) try {
     for (auto c : p) *cpp++ = c;
   }
 
-  // TODO: equivalent for tests
-  auto gen_path = (root + "/target/generated-sources/annotations").cstr();
-  auto out_path = (root + "/target/classes").cstr();
-
   const char * args[] {
     "java",
     "-s",
@@ -99,7 +100,7 @@ int main(int argc, char ** argv) try {
     "-d",
     out_path.begin(),
     "-source",
-    "17",
+    "21",
     "-cp",
     cp.begin(),
     file.begin(),
