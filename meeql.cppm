@@ -11,7 +11,8 @@ extern "C" int sqlite3_spellfix_init(void * db, char ** err, const void * api);
 
 namespace meeql {
   export inline jute::heap home_dir() { return jute::view::unsafe(sysstd::env("HOME")); }
-  export inline jute::heap repo_dir() { return home_dir() + jute::view { "/.m2/repository" }; }
+  export inline jute::heap m2_dir() { return home_dir() + jute::view { "/.m2" }; }
+  export inline jute::heap repo_dir() { return m2_dir() + jute::view { "/repository" }; }
 
   static void recurse(jute::view path, hai::fn<void, jute::view> fn) {
     auto r_dir = repo_dir();
