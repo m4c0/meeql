@@ -44,13 +44,36 @@ import tora;
   return res;
 }
 
+[[nodiscard]] static hai::cstr pom_of(jute::view file) {
+  auto [rest, ext] = file.rsplit('.');
+  if (ext != "java") die("input must be a java file");
+
+  while (rest != "") {
+    auto [l, r] = rest.rsplit('/');
+    rest = l;
+    if (r == "java") break;
+  }
+  if (rest != "") {
+    auto [l, r] = rest.rsplit('/');
+    rest = (r == "main" || r == "test") ? l : "";
+  }
+  if (rest != "") {
+    auto [l, r] = rest.rsplit('/');
+    rest = (r == "src") ? l : "";
+  }
+  // TODO: should we deal with sources from generated-sources?
+  if (rest == "") die("source file must be inside 'src/main/java' or 'src/test/java'");
+
+  return (rest + "/pom.xml").cstr();
+}
+
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc == 1 ? "" : (--argc, *++argv)); };
 
   auto file = shift();
-  if (file == "") die("missing file");
+  if (file == "") die("missing java source file");
 
-  for (auto & p : resolve_deps(file)) {
+  for (auto & p : resolve_deps(pom_of(file))) {
     putln(p);
   }
 } catch (...) {
