@@ -7,7 +7,9 @@ import hai;
 import print;
 import tora;
 
-[[nodiscard]] static auto resolve_deps(jute::view fname) {
+[[nodiscard]] static auto resolve_deps(auto fname_) {
+  auto fname = fname_.cstr();
+
   tora::db db { "out/poc-javac.sqlite" }; // TODO: move to .m2
   db.exec(R"(
     CREATE TABLE IF NOT EXISTS rdep (
@@ -44,7 +46,7 @@ import tora;
   return res;
 }
 
-[[nodiscard]] static hai::cstr pom_of(jute::view file) {
+[[nodiscard]] static auto root_of(jute::view file) {
   auto [rest, ext] = file.rsplit('.');
   if (ext != "java") die("input must be a java file");
 
@@ -64,7 +66,7 @@ import tora;
   // TODO: should we deal with sources from generated-sources?
   if (rest == "") die("source file must be inside 'src/main/java' or 'src/test/java'");
 
-  return (rest + "/pom.xml").cstr();
+  return rest;
 }
 
 int main(int argc, char ** argv) try {
@@ -73,9 +75,30 @@ int main(int argc, char ** argv) try {
   auto file = shift();
   if (file == "") die("missing java source file");
 
-  for (auto & p : resolve_deps(pom_of(file))) {
-    putln(p);
+  auto root = root_of(file);
+
+  auto jars = resolve_deps(root + "/pom.xml");
+  unsigned sz = 0;
+  for (auto & p : jars) sz += p.size() + 1;
+  hai::cstr cp { sz };
+  auto cpp = cp.begin();
+  for (auto & p : jars) {
+    *cpp++ = ':';
+    for (auto c : p) *cpp++ = c;
   }
+
+  // TODO: equivalent for tests
+
+  putln("javac");
+  putln("-s");
+  putln(root, "/target/generated-sources/annotations");
+  putln("-d");
+  putln(root, "/target/classes");
+  putln("-source");
+  putln("17");
+  putln("-cp");
+  putln(cp);
+  putln(file);
 } catch (...) {
   return 3;
 }
