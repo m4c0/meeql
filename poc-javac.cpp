@@ -8,6 +8,30 @@ import print;
 import sysstd;
 import tora;
 
+[[nodiscard]] static constexpr auto root_of(jute::view file) {
+  auto [rest, ext] = file.rsplit('.');
+  if (ext != "java") die("input must be a java file");
+
+  while (rest != "") {
+    auto [l, r] = rest.rsplit('/');
+    rest = l;
+    if (r == "java") break;
+  }
+  if (rest != "") {
+    auto [l, r] = rest.rsplit('/');
+    rest = (r == "main" || r == "test") ? l : "";
+  }
+  if (rest != "") {
+    auto [l, r] = rest.rsplit('/');
+    rest = (r == "src") ? l : "";
+  }
+  // TODO: should we deal with sources from generated-sources?
+  if (rest == "") die("source file must be inside 'src/main/java' or 'src/test/java'");
+
+  return rest;
+}
+static_assert(root_of("blah/bleh/blih/src/main/java/com/bloh/Bluh.java") == "blah/bleh/blih");
+
 [[nodiscard]] static auto resolve_deps(auto fname_) {
   auto fname = fname_.cstr();
 
@@ -46,29 +70,6 @@ import tora;
     res.push_back(traits::move(jar));
   }
   return res;
-}
-
-[[nodiscard]] static auto root_of(jute::view file) {
-  auto [rest, ext] = file.rsplit('.');
-  if (ext != "java") die("input must be a java file");
-
-  while (rest != "") {
-    auto [l, r] = rest.rsplit('/');
-    rest = l;
-    if (r == "java") break;
-  }
-  if (rest != "") {
-    auto [l, r] = rest.rsplit('/');
-    rest = (r == "main" || r == "test") ? l : "";
-  }
-  if (rest != "") {
-    auto [l, r] = rest.rsplit('/');
-    rest = (r == "src") ? l : "";
-  }
-  // TODO: should we deal with sources from generated-sources?
-  if (rest == "") die("source file must be inside 'src/main/java' or 'src/test/java'");
-
-  return rest;
 }
 
 int main(int argc, char ** argv) try {
