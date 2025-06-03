@@ -5,6 +5,7 @@ import jojo;
 import jute;
 import hai;
 import print;
+import sysstd;
 import tora;
 
 [[nodiscard]] static auto resolve_deps(auto fname_) {
@@ -88,17 +89,23 @@ int main(int argc, char ** argv) try {
   }
 
   // TODO: equivalent for tests
+  auto gen_path = (root + "/target/generated-sources/annotations").cstr();
+  auto out_path = (root + "/target/classes").cstr();
 
-  putln("javac");
-  putln("-s");
-  putln(root, "/target/generated-sources/annotations");
-  putln("-d");
-  putln(root, "/target/classes");
-  putln("-source");
-  putln("17");
-  putln("-cp");
-  putln(cp);
-  putln(file);
+  const char * args[] {
+    "java",
+    "-s",
+    gen_path.begin(),
+    "-d",
+    out_path.begin(),
+    "-source",
+    "17",
+    "-cp",
+    cp.begin(),
+    file.begin(),
+    0,
+  };
+  return sysstd::spawn("javac", args);
 } catch (...) {
   return 3;
 }
