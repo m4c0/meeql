@@ -106,7 +106,7 @@ int main(int argc, char ** argv) try {
   }
 
   const char * args[] {
-    "java",
+    "javac",
     "-s",
     gen_path.begin(),
     "-d",
