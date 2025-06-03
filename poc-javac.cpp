@@ -4,6 +4,7 @@ import cavan;
 import jojo;
 import jute;
 import hai;
+import meeql;
 import print;
 import sysstd;
 import tora;
@@ -56,18 +57,28 @@ static_assert(root_of("blah/bleh/blih/src/main/java/com/bloh/Bluh.java") == "bla
   auto pom = cavan::read_pom(fname);
   auto deps = cavan::resolve_transitive_deps(pom);
 
+  const auto m2dir = meeql::repo_dir();
+
   stmt = db.prepare("INSERT INTO rdep (s_pom, t_jar) VALUES (?, ?)");
   for (auto i = 0; i < deps.size(); i++) {
     auto p = deps.seek(i);
-    // TODO: deal with modules in the same reactor
-    auto jar = cavan::path_of(p->grp, p->art, p->ver, "jar");
+
+    hai::cstr cp;
+
+    jute::view fn { p->filename };
+    if (fn.starts_with(*m2dir)) {
+      cp = cavan::path_of(p->grp, p->art, p->ver, "jar");
+    } else {
+      // TODO: test variant of this
+      cp = (fn.rsplit('/').before + "/target/classes").cstr();
+    }
 
     stmt.reset();
     stmt.bind(1, fname);
-    stmt.bind(2, jar);
+    stmt.bind(2, cp);
     stmt.step();
 
-    res.push_back(traits::move(jar));
+    res.push_back(traits::move(cp));
   }
   return res;
 }
