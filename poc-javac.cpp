@@ -33,16 +33,22 @@ import tora;
 }
 static_assert(root_of("blah/bleh/blih/src/main/java/com/bloh/Bluh.java") == "blah/bleh/blih");
 
-[[nodiscard]] static auto resolve_deps(auto fname_) {
-  auto fname = fname_.cstr();
-
-  tora::db db { "out/poc-javac.sqlite" }; // TODO: move to .m2
+[[nodiscard]] static auto init_db() {
+  auto fname = meeql::m2_dir() + "/meeql-javac.sqlite\0";
+  tora::db db { fname.begin() }; // TODO: move to .m2
   db.exec(R"(
     CREATE TABLE IF NOT EXISTS rdep (
       s_pom TEXT NOT NULL,
       t_jar TEXT NOT NULL
     ) STRICT
   )");
+  return db;
+}
+
+[[nodiscard]] static auto resolve_deps(auto fname_) {
+  auto fname = fname_.cstr();
+
+  auto db = init_db();
 
   auto stmt = db.prepare("SELECT t_jar FROM rdep WHERE s_pom = ?");
   stmt.bind(1, fname);
