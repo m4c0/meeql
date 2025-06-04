@@ -107,6 +107,7 @@ int main(int argc, char ** argv) try {
 
   const char * args[] {
     "javac",
+    "-proc:full",
     "-s",
     gen_path.begin(),
     "-d",
