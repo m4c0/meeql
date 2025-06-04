@@ -95,6 +95,15 @@ int main(int argc, char ** argv) try {
   auto file = shift();
   if (file == "") die("missing java source file");
 
+  if (file == "-r") {
+    file = shift();
+
+    auto db = init_db();
+    auto stmt = db.prepare("DELETE FROM rdep WHERE s_pom = ?");
+    stmt.bind(1, file);
+    stmt.step();
+  }
+
   auto root = root_of(file);
 
   // TODO: equivalent for tests
