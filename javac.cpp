@@ -18,8 +18,15 @@ import tora;
     rest = l;
     if (r == "java") break;
   }
+
+  struct {
+    jute::view root;
+    bool test = false;
+  } res;
+
   if (rest != "") {
     auto [l, r] = rest.rsplit('/');
+    res.test = r == "test";
     rest = (r == "main" || r == "test") ? l : "";
   }
   if (rest != "") {
@@ -29,9 +36,12 @@ import tora;
   // TODO: should we deal with sources from generated-sources?
   if (rest == "") die("source file must be inside 'src/main/java' or 'src/test/java'");
 
-  return rest;
+  res.root = rest;
+  return res;
 }
-static_assert(root_of("blah/bleh/blih/src/main/java/com/bloh/Bluh.java") == "blah/bleh/blih");
+static_assert(root_of("blah/bleh/blih/src/main/java/com/bloh/Bluh.java").root == "blah/bleh/blih");
+static_assert(!root_of("blah/bleh/blih/src/main/java/com/bloh/Bluh.java").test);
+static_assert(root_of("blah/bleh/blih/src/test/java/com/bloh/Bluh.java").test);
 
 [[nodiscard]] static auto init_db() {
   auto fname = meeql::m2_dir() + "/meeql-javac.sqlite\0";
@@ -104,11 +114,14 @@ int main(int argc, char ** argv) try {
     stmt.step();
   }
 
-  auto root = root_of(file);
+  hai::cstr realpath { 10240 };
+  sysstd::fullpath(file.begin(), realpath.begin(), realpath.size());
 
-  // TODO: equivalent for tests
-  auto gen_path = (root + "/target/generated-sources/annotations").cstr();
-  auto out_path = (root + "/target/classes").cstr();
+  auto [root, test] = root_of(jute::view::unsafe(realpath.begin()));
+  auto tp = test ? jute::view{"test-"} : jute::view{};
+
+  auto gen_path = (root + "/target/generated-" + tp + "sources/annotations").cstr();
+  auto out_path = (root + "/target/" + tp + "classes").cstr();
 
   auto jars = resolve_deps(root + "/pom.xml");
   unsigned sz = 0;
@@ -131,7 +144,7 @@ int main(int argc, char ** argv) try {
     "21",
     "-cp",
     cp.begin(),
-    file.begin(),
+    realpath.begin(),
     0,
   };
   return sysstd::spawn("javac", args);
