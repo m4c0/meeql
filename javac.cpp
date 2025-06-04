@@ -55,10 +55,15 @@ static_assert(root_of("blah/bleh/blih/src/test/java/com/bloh/Bluh.java").test);
   return db;
 }
 
-[[nodiscard]] static auto resolve_deps(auto fname_) {
+[[nodiscard]] static auto resolve_deps(auto fname_, bool use_cache) {
   auto fname = fname_.cstr();
 
   auto db = init_db();
+  if (!use_cache) {
+    auto stmt = db.prepare("DELETE FROM rdep WHERE s_pom = ?");
+    stmt.bind(1, fname);
+    stmt.step();
+  }
 
   auto stmt = db.prepare("SELECT t_jar FROM rdep WHERE s_pom = ?");
   stmt.bind(1, fname);
@@ -102,16 +107,13 @@ static_assert(root_of("blah/bleh/blih/src/test/java/com/bloh/Bluh.java").test);
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc == 1 ? "" : (--argc, *++argv)); };
 
+  bool use_cache = true;
   auto file = shift();
   if (file == "") die("missing java source file");
 
   if (file == "-r") {
+    use_cache = false;
     file = shift();
-
-    auto db = init_db();
-    auto stmt = db.prepare("DELETE FROM rdep WHERE s_pom = ?");
-    stmt.bind(1, file);
-    stmt.step();
   }
 
   hai::cstr realpath { 10240 };
@@ -123,7 +125,7 @@ int main(int argc, char ** argv) try {
   auto gen_path = (root + "/target/generated-" + tp + "sources/annotations").cstr();
   auto out_path = (root + "/target/" + tp + "classes").cstr();
 
-  auto jars = resolve_deps(root + "/pom.xml");
+  auto jars = resolve_deps(root + "/pom.xml", use_cache);
   unsigned sz = 0;
   for (auto & p : jars) sz += p.size() + 1;
   hai::cstr cp { sz };
