@@ -1,6 +1,7 @@
 module meeql;
 import cavan;
 import jojo;
+import print;
 import sysstd;
 
 [[nodiscard]] static auto init_db() {
@@ -15,9 +16,7 @@ import sysstd;
   return db;
 }
 
-[[nodiscard]] static auto resolve_deps(auto fname_, bool use_cache) {
-  auto fname = fname_.cstr();
-
+[[nodiscard]] static auto resolve_deps(auto & fname, bool use_cache) {
   auto db = init_db();
   if (!use_cache) {
     auto stmt = db.prepare("DELETE FROM rdep WHERE s_pom = ?");
@@ -55,10 +54,17 @@ import sysstd;
 hai::cstr meeql::resolve_classpath(const char * any_file_in_repo, bool use_cache = true) {
   hai::cstr realpath { 10240 };
   sysstd::fullpath(any_file_in_repo, realpath.begin(), realpath.size());
+  auto root = jute::view::unsafe(realpath.begin());
+  hai::cstr pom {};
+  while (root != "") {
+    auto [l, r] = root.rsplit('/');
+    pom = (l + "/pom.xml").cstr();
+    if (mtime::of(pom.begin())) break;
+  }
 
-  auto root = root_of(jute::view::unsafe(realpath.begin())).root;
+  if (root == "") die("pom.xml not found in file's parents");
 
-  auto jars = resolve_deps(root + "/pom.xml", use_cache);
+  auto jars = resolve_deps(pom, use_cache);
   unsigned sz = 0;
   for (auto & p : jars) sz += p.size() + 1;
   hai::cstr cp { sz };
