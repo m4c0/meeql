@@ -60,6 +60,7 @@ hai::cstr meeql::resolve_classpath(const char * any_file_in_repo, bool use_cache
     auto [l, r] = root.rsplit('/');
     pom = (l + "/pom.xml").cstr();
     if (mtime::of(pom.begin())) break;
+    root = l;
   }
 
   if (root == "") die("pom.xml not found in file's parents");
