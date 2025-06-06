@@ -76,30 +76,18 @@ static_assert(root_of("blah/bleh/blih/src/test/java/com/bloh/Bluh.java").test);
 
   cavan::file_reader = jojo::read_cstr;
   auto pom = cavan::read_pom(fname);
-  auto deps = cavan::resolve_transitive_deps(pom);
+  auto deps = cavan::resolve_classpath(pom);
 
   const auto m2dir = meeql::repo_dir();
 
   stmt = db.prepare("INSERT INTO rdep (s_pom, t_jar) VALUES (?, ?)");
-  for (auto i = 0; i < deps.size(); i++) {
-    auto p = deps.seek(i);
-
-    hai::cstr cp;
-
-    jute::view fn { p->filename };
-    if (fn.starts_with(*m2dir)) {
-      cp = cavan::path_of(p->grp, p->art, p->ver, "jar");
-    } else {
-      // TODO: test variant of this
-      cp = (fn.rsplit('/').before + "/target/classes").cstr();
-    }
-
+  for (auto & p : deps) {
     stmt.reset();
     stmt.bind(1, fname);
-    stmt.bind(2, cp);
+    stmt.bind(2, p);
     stmt.step();
 
-    res.push_back(traits::move(cp));
+    res.push_back(traits::move(p));
   }
   return res;
 }
