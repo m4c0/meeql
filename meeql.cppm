@@ -1,8 +1,10 @@
 #pragma leco add_impl spellfix
+#pragma leco add_impl meeql_classpath
 export module meeql;
 import jute;
 import hai;
 import mtime;
+import print;
 import pprent;
 import sysstd;
 import tora;
@@ -35,6 +37,44 @@ namespace meeql {
     }
   }
   export void recurse_repo_dir(hai::fn<void, jute::view> fn) { recurse("", fn); }
+
+  export hai::fn<void, jute::view> on_error = [](jute::view msg) { die(msg); };
+
+  export [[nodiscard]] constexpr auto root_of(jute::view file) {
+    auto [rest, ext] = file.rsplit('.');
+    if (ext != "java") die("input must be a java file");
+  
+    while (rest != "") {
+      auto [l, r] = rest.rsplit('/');
+      rest = l;
+      if (r == "java") break;
+    }
+  
+    struct {
+      jute::view root;
+      bool test = false;
+    } res;
+  
+    if (rest != "") {
+      auto [l, r] = rest.rsplit('/');
+      res.test = r == "test";
+      rest = (r == "main" || r == "test") ? l : "";
+    }
+    if (rest != "") {
+      auto [l, r] = rest.rsplit('/');
+      rest = (r == "src") ? l : "";
+    }
+    // TODO: should we deal with sources from generated-sources?
+    if (rest == "") die("source file must be inside 'src/main/java' or 'src/test/java'");
+  
+    res.root = rest;
+    return res;
+  }
+  static_assert(root_of("blah/bleh/blih/src/main/java/com/bloh/Bluh.java").root == "blah/bleh/blih");
+  static_assert(!root_of("blah/bleh/blih/src/main/java/com/bloh/Bluh.java").test);
+  static_assert(root_of("blah/bleh/blih/src/test/java/com/bloh/Bluh.java").test);
+
+  export hai::cstr resolve_classpath(const char * any_file_in_repo, bool use_cache);
 
   struct spellfix_error { const char * msg; };
   export void spellfix_init(tora::db & db) {
