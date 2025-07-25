@@ -151,6 +151,12 @@ static void jar(tora::db & db, jute::view term) {
 static void javap(tora::db & db, jute::view term) {
   if (term == "") die("missing search term");
 
+  // TODO: inner classes
+  // TODO: copy this to others?
+  auto t = term.cstr();
+  for (auto & c : t) if (c == '.') c = '/';
+  term = t;
+
   auto stmt = db.prepare(R"(
     SELECT j.path
     FROM class AS c
