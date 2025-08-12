@@ -126,7 +126,7 @@ static void search(tora::db & db, jute::view term) {
   if (term == "") die("missing search term");
   auto stmt = db.prepare(R"(
     SELECT * FROM class_fts
-    WHERE fqn MATCH ? || '*'
+    WHERE fqn MATCH ?
     ORDER BY rank
     LIMIT 1000
   )");
