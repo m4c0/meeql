@@ -101,7 +101,7 @@ static int javac(tora::db & db, jute::view file) {
   auto gen_path = (root + "/target/generated-" + tp + "sources/annotations").cstr();
   auto out_path = (root + "/target/" + tp + "classes").cstr();
 
-  jute::heap cp {};
+  jute::heap cp = jute::view{out_path};
   const auto rec = [&](auto & rec, jute::view path) {
     if (!mtime::of((path + "/pom.xml").cstr().begin())) return;
     cp = cp + ":" + path + "/target/classes";
