@@ -20,13 +20,13 @@ Available commands (in alphabetical order):
 )");
 }
 
-static void load(tora::db & db, jute::view path) {
+static void load(tora::stmt & stmt, jute::view path) {
   if (!mtime::of((path + "/pom.xml").cstr().begin())) return;
   for (auto d : pprent::list(path.cstr().begin())) {
     if (d[0] == '.') continue;
 
     auto dp = (path + "/" + jute::view::unsafe(d)).cstr();
-    load(db, dp);
+    load(stmt, dp);
 
     auto deps = (dp + "/target/meeql-brute"_s).cstr();
     if (!mtime::of(deps.begin())) continue;
@@ -43,7 +43,13 @@ static void load(tora::db & db, jute::view path) {
       auto [typ, rt] = ra.split(':');
       auto [ver, sc] = rt.split(':');
       auto jar = cavan::path_of(grp, art, ver, "jar");
-      putln(jar);
+
+      stmt.reset();
+      stmt.bind(1, jar);
+      stmt.bind(2, grp);
+      stmt.bind(3, art);
+      stmt.bind(4, ver);
+      stmt.step();
     }
   }
 }
@@ -57,6 +63,11 @@ static void load(tora::db & db) {
       ver   TEXT NOT NULL,
       UNIQUE (grp, art)
     ) STRICT;
+  )");
+  auto stmt = db.prepare(R"(
+    INSERT INTO dep (path, grp, art, ver) VALUES (?, ?, ?, ?)
+    ON CONFLICT (grp, art) DO
+    UPDATE SET ver=excluded.ver, path=excluded.path
   )");
 
   p::proc p {
@@ -72,7 +83,7 @@ static void load(tora::db & db) {
   }
   if (erred) die("mvn emitted some error");
 
-  load(db, ".");
+  load(stmt, ".");
 }
 
 int main(int argc, char ** argv) {
