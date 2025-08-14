@@ -102,6 +102,18 @@ static int javac(tora::db & db, jute::view file) {
   auto out_path = (root + "/target/" + tp + "classes").cstr();
 
   jute::heap cp {};
+  const auto rec = [&](auto & rec, jute::view path) {
+    if (!mtime::of((path + "/pom.xml").cstr().begin())) return;
+    cp = cp + ":" + path + "/target/classes";
+    for (auto d : pprent::list(path.cstr().begin())) {
+      if (d[0] == '.') continue;
+
+      auto dp = (path + "/" + jute::view::unsafe(d)).cstr();
+      rec(rec, dp);
+    }
+  };
+  rec(rec, ".");
+
   auto stmt = db.prepare("SELECT path FROM dep");
   while (stmt.step()) {
     cp = cp + ":" + stmt.column_view(0);
