@@ -146,6 +146,7 @@ int main(int argc, char ** argv) try {
        if (cmd == "")      help();
   else if (cmd == "javac") return javac(db, shift());
   else if (cmd == "load")  load(db);
+  else                     die("invalid command: ", cmd);
 } catch (...) {
   return 1;
 }
