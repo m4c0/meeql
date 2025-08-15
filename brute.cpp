@@ -167,7 +167,7 @@ static int junit(tora::db & db, jute::view file) {
     "-cp", cp.begin(),
     "--disable-ansi-colors",
     "--disable-banner",
-    "--details flat",
+    "--details", "flat",
     "-c", cls.begin(),
     0,
   };
