@@ -89,19 +89,8 @@ static void load(tora::db & db) {
   load(stmt, ".");
 }
 
-static int javac(tora::db & db, jute::view file) {
-  if (file == "") die("missing java source file");
-
-  hai::cstr rpath { 10240 };
-  sysstd::fullpath(file.cstr().begin(), rpath.begin(), rpath.size());
-
-  auto [root, test] = meeql::root_of(jute::view::unsafe(rpath.begin()));
-  auto tp = test ? jute::view{"test-"} : jute::view{};
-
-  auto gen_path = (root + "/target/generated-" + tp + "sources/annotations").cstr();
-  auto out_path = (root + "/target/" + tp + "classes").cstr();
-
-  jute::heap cp = jute::view{out_path};
+static auto classpath(tora::db & db, jute::view out_path) {
+  jute::heap cp = out_path;
   const auto rec = [&](auto & rec, jute::view path) {
     if (!mtime::of((path + "/pom.xml").cstr().begin())) return;
     cp = cp + ":" + path + "/target/classes";
@@ -118,6 +107,22 @@ static int javac(tora::db & db, jute::view file) {
   while (stmt.step()) {
     cp = cp + ":" + stmt.column_view(0);
   }
+  return cp;
+}
+
+static int javac(tora::db & db, jute::view file) {
+  if (file == "") die("missing java source file");
+
+  hai::cstr rpath { 10240 };
+  sysstd::fullpath(file.cstr().begin(), rpath.begin(), rpath.size());
+
+  auto [root, test] = meeql::root_of(jute::view::unsafe(rpath.begin()));
+  auto tp = test ? jute::view{"test-"} : jute::view{};
+
+  auto gen_path = (root + "/target/generated-" + tp + "sources/annotations").cstr();
+  auto out_path = (root + "/target/" + tp + "classes").cstr();
+
+  auto cp = classpath(db, out_path);
 
   const char * args[] {
     "javac",
@@ -136,6 +141,39 @@ static int javac(tora::db & db, jute::view file) {
   return sysstd::spawn("javac", args);
 }
 
+static int junit(tora::db & db, jute::view file) {
+  hai::array<char> rpath { 10240 };
+  sysstd::fullpath(file.cstr().begin(), rpath.begin(), rpath.size());
+
+  auto [root, test] = meeql::root_of(jute::view::unsafe(rpath.begin()));
+  auto out_path = (root + "/target/test-classes").cstr();
+
+  auto cp = classpath(db, out_path);
+
+  auto junit = cavan::path_of("org.junit.platform", "junit-platform-console-standalone", "1.10.0", "jar");
+
+  auto p = jute::view::unsafe(rpath.begin()).subview(root.size()).after;
+  if (!p.starts_with("/src/test/java/")) die("we can only run tests on test folders");
+
+  auto cls = p.subview(15).after.rsplit('.').before.cstr();
+  for (auto & c : cls) c = c == '/' ? '.' : c;
+
+  const char * args[] {
+    "java",
+    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+    "--add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED",
+    "-jar", junit.begin(),
+    "execute",
+    "-cp", cp.begin(),
+    "--disable-ansi-colors",
+    "--disable-banner",
+    "--details flat",
+    "-c", cls.begin(),
+    0,
+  };
+  return sysstd::spawn("java", args);
+}
+
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
@@ -145,6 +183,7 @@ int main(int argc, char ** argv) try {
   auto cmd = shift();
        if (cmd == "")      help();
   else if (cmd == "javac") return javac(db, shift());
+  else if (cmd == "junit") return junit(db, shift());
   else if (cmd == "load")  load(db);
   else                     die("invalid command: ", cmd);
 } catch (...) {
