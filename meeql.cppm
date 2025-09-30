@@ -18,8 +18,8 @@ namespace meeql {
 
   static void recurse(jute::view path, hai::fn<void, jute::view> fn) {
     auto r_dir = repo_dir();
-    auto full_path = r_dir + path + "\0";
-    auto marker = r_dir + path + "/_remote.repositories\0";
+    auto full_path = r_dir + path;
+    auto marker = r_dir + path + "/_remote.repositories";
     if (mtime::of(marker.cstr().begin())) {
       auto [l_ver, ver] = path.rsplit('/');
       auto [l_art, art] = l_ver.rsplit('/');

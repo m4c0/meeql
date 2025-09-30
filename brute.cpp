@@ -177,7 +177,7 @@ static int junit(tora::db & db, jute::view file) {
 int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
-  auto file = meeql::m2_dir() + "/meeql-brute.sqlite\0";
+  auto file = meeql::m2_dir() + "/meeql-brute.sqlite";
   tora::db db { file.cstr().begin() };
 
   auto cmd = shift();

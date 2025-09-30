@@ -5,7 +5,7 @@ import print;
 import sysstd;
 
 [[nodiscard]] static auto init_db() {
-  auto fname = meeql::m2_dir() + "/meeql-javac.sqlite\0";
+  auto fname = meeql::m2_dir() + "/meeql-javac.sqlite";
   tora::db db { fname.cstr().begin() }; // TODO: move to .m2
   db.exec(R"(
     CREATE TABLE IF NOT EXISTS rdep (
