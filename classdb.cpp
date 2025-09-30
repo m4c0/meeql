@@ -221,6 +221,8 @@ static void imports(tora::db & db, jute::view term) {
 }
 
 int main(int argc, char ** argv) try {
+  tora::on_error = [](auto msg) { die(msg); };
+
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
   auto file = meeql::m2_dir() + "/meeql-classdb.sqlite";

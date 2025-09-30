@@ -115,6 +115,8 @@ static bool fetch_next(int pom, jute::heap & grp, jute::heap & art, jute::heap &
 }
 
 int main(int argc, char ** argv) {
+  tora::on_error = [](auto msg) { die(msg); };
+
   if (argc < 3) {
     silog::log(silog::error, "requires group/artefact/version");
     return 1;

@@ -87,6 +87,8 @@ static void cmd_search(tora::db & db, jute::view param) {
 }
 
 int main(int argc, char ** argv) try {
+  tora::on_error = [](auto msg) { die(msg); };
+
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
   auto db = init();

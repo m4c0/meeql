@@ -10,6 +10,8 @@ import sysstd;
 import tora;
 
 int main(int argc, char ** argv) try {
+  tora::on_error = [](auto msg) { die(msg); };
+
   const auto shift = [&] { return jute::view::unsafe(argc == 1 ? "" : (--argc, *++argv)); };
 
   bool use_cache = true;

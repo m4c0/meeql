@@ -229,6 +229,8 @@ void dump_stats(tora::db & db) {
 }
 
 int main(int argc, char ** argv) try {
+  tora::on_error = [](auto msg) { silog::die("%s", msg.cstr().begin()); };
+
   sitime::stopwatch t {};
 
   auto file = (home_dir + "/.m2/meeql").cstr();
