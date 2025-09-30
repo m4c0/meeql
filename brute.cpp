@@ -179,8 +179,8 @@ int main(int argc, char ** argv) try {
 
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
-  auto file = meeql::m2_dir() + "/meeql-brute.sqlite";
-  tora::db db { file.cstr().begin() };
+  auto file = (meeql::m2_dir() + "/meeql-brute.sqlite").cstr();
+  tora::db db { file.begin() };
 
   auto cmd = shift();
        if (cmd == "")      help();
