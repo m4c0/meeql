@@ -71,10 +71,10 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
 static void add_jar(tora::stmt * stmt, jute::view pom_path) {
   auto name = pom_path.rsplit('/').after.rsplit('.').before;
   auto jar_path = jute::heap { pom_path.rsplit('.').before } + ".jar";
-  if (!mtime::of((*jar_path).cstr().begin())) return;
+  if (!mtime::of(jar_path.cstr().begin())) return;
 
   stmt->reset();
-  stmt->bind(1, *jar_path);
+  stmt->bind(1, jar_path.cstr());
   stmt->bind(2, name);
   stmt->step();
 }
@@ -224,7 +224,7 @@ int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
   auto file = meeql::m2_dir() + "/meeql-classdb.sqlite\0";
-  tora::db db { file.begin() };
+  tora::db db { file.cstr().begin() };
   meeql::spellfix_init(db);
 
   auto cmd = shift();

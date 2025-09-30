@@ -90,7 +90,7 @@ static void load(tora::db & db) {
 }
 
 static auto classpath(tora::db & db, jute::view out_path) {
-  jute::heap cp = out_path;
+  jute::heap cp { out_path };
   const auto rec = [&](auto & rec, jute::view path) {
     if (!mtime::of((path + "/pom.xml").cstr().begin())) return;
     cp = cp + ":" + path + "/target/classes";
@@ -178,7 +178,7 @@ int main(int argc, char ** argv) try {
   const auto shift = [&] { return jute::view::unsafe(argc > 1 ? (--argc, *++argv) : ""); };
 
   auto file = meeql::m2_dir() + "/meeql-brute.sqlite\0";
-  tora::db db { file.begin() };
+  tora::db db { file.cstr().begin() };
 
   auto cmd = shift();
        if (cmd == "")      help();

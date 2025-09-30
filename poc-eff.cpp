@@ -108,9 +108,9 @@ static bool fetch_next(int pom, jute::heap & grp, jute::heap & art, jute::heap &
   )");
   stmt.bind(1, pom);
   if (!stmt.step()) return false;
-  grp = stmt.column_view(0);
-  art = stmt.column_view(1);
-  ver = stmt.column_view(2);
+  grp = jute::heap { stmt.column_view(0) };
+  art = jute::heap { stmt.column_view(1) };
+  ver = jute::heap { stmt.column_view(2) };
   return true;
 }
 
