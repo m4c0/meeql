@@ -32,7 +32,7 @@ namespace meeql {
     }
     for (auto f : pprent::list(full_path.cstr().begin())) {
       if (f[0] == '.') continue;
-      auto child = jute::heap { path } + "/" + jute::view::unsafe(f);
+      auto child = path + "/" + jute::view::unsafe(f);
       recurse(child.cstr(), fn);
     }
   }
