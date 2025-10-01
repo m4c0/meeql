@@ -38,7 +38,6 @@ static void add_jar(tora::stmt * stmt, jute::view pom_path) {
 
 static auto init() {
   tora::db db { ":memory:" };
-  meeql::spellfix_init(db);
 
   db.exec(R"(
     CREATE TABLE jar (
@@ -54,8 +53,8 @@ static auto init() {
   meeql::recurse_repo_dir(curry(add_jar, &stmt));
 
   db.exec(R"(
-    CREATE VIRTUAL TABLE jar_sfx USING spellfix1;
-    INSERT INTO jar_sfx(word) SELECT name FROM jar;
+    CREATE VIRTUAL TABLE jar_sfx USING fts5 (word);
+    INSERT INTO jar_sfx SELECT name FROM jar;
   )");
 
   return db;
@@ -81,7 +80,7 @@ static void cmd_mvndep(tora::db & db, jute::view param) {
 
 static void cmd_search(tora::db & db, jute::view param) {
   if (param == "") die("missing search parameter");
-  auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH ? || '*'");
+  auto stmt = db.prepare("SELECT word FROM jar_sfx WHERE word MATCH ?");
   stmt.bind(1, param);
   while (stmt.step()) putln(stmt.column_view(0));
 }
