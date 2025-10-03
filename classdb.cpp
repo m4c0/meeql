@@ -70,11 +70,11 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
 
 static void add_jar(tora::stmt * stmt, jute::view pom_path) {
   auto name = pom_path.rsplit('/').after.rsplit('.').before;
-  auto jar_path = jute::heap { pom_path.rsplit('.').before } + ".jar";
-  if (!mtime::of(jar_path.cstr().begin())) return;
+  auto jar_path = (pom_path.rsplit('.').before + ".jar").cstr();
+  if (!mtime::of(jar_path.begin())) return;
 
   stmt->reset();
-  stmt->bind(1, jar_path.cstr());
+  stmt->bind(1, jar_path);
   stmt->bind(2, name);
   stmt->step();
 }
