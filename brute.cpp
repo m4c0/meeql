@@ -81,8 +81,11 @@ static void load(tora::db & db) {
   bool erred = false;
   while (p.gets()) {}
   while (p.gets_err()) {
+    auto line = jute::view::unsafe(p.last_line_read());
+    if (line.starts_with("WARNING:")) continue;
+
     erred = true;
-    putln(p.last_line_read());
+    putln(line);
   }
   if (erred) die("mvn emitted some error");
 
