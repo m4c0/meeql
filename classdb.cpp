@@ -227,7 +227,6 @@ int main(int argc, char ** argv) try {
 
   auto file = (meeql::m2_dir() + "/meeql-classdb.sqlite").cstr();
   tora::db db { file.begin() };
-  meeql::spellfix_init(db);
 
   auto cmd = shift();
   auto param = shift();

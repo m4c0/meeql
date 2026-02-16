@@ -1,4 +1,3 @@
-#pragma leco add_impl spellfix
 #pragma leco add_impl meeql_classpath
 export module meeql;
 import jute;
@@ -73,11 +72,4 @@ namespace meeql {
   static_assert(root_of("blah/bleh/blih/src/test/java/com/bloh/Bluh.java").test);
 
   export hai::cstr resolve_classpath(const char * any_file_in_repo, bool use_cache);
-
-  struct spellfix_error { const char * msg; };
-  export void spellfix_init(tora::db & db) {
-    char * err {};
-    sqlite3_spellfix_init(db.handle(), &err, nullptr);
-    if (err) throw spellfix_error { err };
-  }
 }
