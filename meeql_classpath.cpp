@@ -33,7 +33,7 @@ import sysstd;
   }
   if (res.size()) return res;
 
-  cavan::file_reader = jojo::read_cstr;
+  cavan::file_reader = jojo::slurp;
   auto pom = cavan::read_pom(fname);
   auto deps = cavan::resolve_classpath(pom);
 
@@ -58,7 +58,7 @@ hai::cstr meeql::resolve_classpath(const char * any_file_in_repo, bool use_cache
   hai::cstr pom {};
   while (root != "") {
     auto [l, r] = root.rsplit('/');
-    pom = (l + "/pom.xml").cstr();
+    pom = (jute::view{l} + "/pom.xml").cstr();
     if (mtime::of(pom.begin())) break;
     root = l;
   }

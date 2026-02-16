@@ -34,7 +34,7 @@ static void load(tora::stmt & stmt, jute::view path) {
     auto deps = (dp + "/target/meeql-brute"_s).cstr();
     if (!mtime::of(deps.begin())) continue;
 
-    auto src = jojo::read_cstr(deps);
+    auto src = jojo::slurp(deps);
     jute::view rest = src;
     while (rest.size()) {
       auto [l, r] = rest.split('\n');
@@ -96,7 +96,7 @@ static auto classpath(tora::db & db, jute::view out_path) {
   jute::heap cp { out_path };
   const auto rec = [&](auto & rec, jute::view path) {
     if (!mtime::of((path + "/pom.xml").cstr().begin())) return;
-    cp = cp + ":" + path + "/target/classes";
+    cp = (cp + ":" + path + "/target/classes").heap();
     for (auto d : pprent::list(path.cstr().begin())) {
       if (d[0] == '.') continue;
 
@@ -108,7 +108,7 @@ static auto classpath(tora::db & db, jute::view out_path) {
 
   auto stmt = db.prepare("SELECT path FROM dep");
   while (stmt.step()) {
-    cp = cp + ":" + stmt.column_view(0);
+    cp = (cp + ":" + stmt.column_view(0)).heap();
   }
   return cp;
 }
@@ -158,7 +158,7 @@ static int junit(tora::db & db, jute::view file) {
   auto p = jute::view::unsafe(rpath.begin()).subview(root.size()).after;
   if (!p.starts_with("/src/test/java/")) die("we can only run tests on test folders");
 
-  auto cls = p.subview(15).after.rsplit('.').before.cstr();
+  auto cls = jute::view{p.subview(15).after.rsplit('.').before}.cstr();
   for (auto & c : cls) c = c == '/' ? '.' : c;
 
   const char * args[] {

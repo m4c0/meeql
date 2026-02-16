@@ -27,7 +27,7 @@ static auto curry(auto fn, auto param) {
 
 static void add_jar(tora::stmt * stmt, jute::view pom_path) {
   auto name = pom_path.rsplit('/').after.rsplit('.').before;
-  auto jar_path = (pom_path.rsplit('.').before + ".jar").cstr();
+  auto jar_path = (jute::view{pom_path.rsplit('.').before} + ".jar").cstr();
   if (!mtime::of(jar_path.begin())) return;
 
   stmt->reset();
@@ -68,7 +68,7 @@ static void cmd_mvndep(tora::db & db, jute::view param) {
 
   auto [ver_r, ver] = stmt.column_view(0).rsplit('/').before.rsplit('/');
   auto [path, art] = ver_r.rsplit('/');
-  auto grp = path.subview(meeql::repo_dir().size() + 1).after.cstr();
+  auto grp = jute::view{path.subview(meeql::repo_dir().size() + 1).after}.cstr();
   for (auto & c : grp) if (c == '/') c = '.';
 
   putln("    <dependency>");

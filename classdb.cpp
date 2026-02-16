@@ -50,7 +50,7 @@ static_assert(is_lambda("Abc$1"));
 
 static void unjar(tora::stmt * stmt, jute::view pom_path) {
   auto art_name = pom_path.rsplit('/').after.rsplit('.').before;
-  auto jar_path = (pom_path.rsplit('.').before + ".jar").cstr();
+  auto jar_path = (jute::view{pom_path.rsplit('.').before} + ".jar").cstr();
   if (!mtime::of(jar_path.begin())) return;
 
   p::proc p { "unzip", "-qq", "-l", jar_path.begin(), "*.class" };
@@ -70,7 +70,7 @@ static void unjar(tora::stmt * stmt, jute::view pom_path) {
 
 static void add_jar(tora::stmt * stmt, jute::view pom_path) {
   auto name = pom_path.rsplit('/').after.rsplit('.').before;
-  auto jar_path = (pom_path.rsplit('.').before + ".jar").cstr();
+  auto jar_path = (jute::view{pom_path.rsplit('.').before} + ".jar").cstr();
   if (!mtime::of(jar_path.begin())) return;
 
   stmt->reset();
@@ -190,7 +190,7 @@ static void imports(tora::db & db, jute::view term) {
 
     if (cls.starts_with("java")) return;
   
-    auto cls_s = cls.cstr();
+    auto cls_s = jute::view{cls}.cstr();
     for (auto & c : cls_s) if (c == '.') c = '/';
     if (stc) {
       const auto cc = cls_s.begin();
